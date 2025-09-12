@@ -27,6 +27,23 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <header className="header-bar">
+          <nav className="header-nav">
+            <div className="header-logo">
+              <img src="/logo.png" alt="Logo Clean & Garden" style={{ height: 70 }} />
+            </div>
+            <ul className="header-menu">
+              <li><a href="#">Inicio</a></li>
+              <li><a href="#">Servicios</a></li>
+              <li><a href="#">Sobre Nosotros</a></li>
+              <li><a href="#">Galería</a></li>
+              <li><a href="#">Agenda tu hora</a></li>
+            </ul>
+            <a href="#" className="header-btn">
+              Regístrate o inicia sesión
+            </a>
+          </nav>
+        </header>
         {children}
       </body>
     </html>
