@@ -10,8 +10,8 @@ export default function RecuperarContrasena() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FAF7F0] px-4">
-      <div className="w-full max-w-md text-center">
+    <div className="flex items-center justify-center min-h-screen bg-[#fefaf2]">
+      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg">
         <h1 className="text-2xl font-bold text-gray-800 mb-6">
           ¿Olvidaste tu contraseña?
         </h1>
@@ -33,7 +33,7 @@ export default function RecuperarContrasena() {
           {/* Botón */}
           <button
             type="submit"
-            className="bg-green-700 text-white px-6 py-2 rounded-md hover:bg-green-800 transition"
+            className="text-white px-6 py-2 text-white rounded-md bg-[#2E5430] hover:bg-green-700"
           >
             Solicitar código
           </button>

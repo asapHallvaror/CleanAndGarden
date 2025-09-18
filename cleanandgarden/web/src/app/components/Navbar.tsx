@@ -4,7 +4,7 @@ import { useState } from "react";
 
 export default function Navbar() {
   return (
-  <div className="navbar shadow-md px-4" style={{ backgroundColor: '#f5e9d7' }}>
+  <div className="navbar shadow-md px-4 sticky top-0 z-50" style={{ backgroundColor: '#f5e9d7' }}>
       {/* Logo a la izquierda */}
       <div className="navbar-start">
         <a href="#" className="btn btn-ghost normal-case text-xl p-0">

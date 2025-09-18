@@ -15,14 +15,18 @@ export default function RegisterPage() {
     terminos: false,
   });
 
-  // 👁️ Estados para mostrar/ocultar
+  // Estados para mostrar/ocultar
   const [showPassword, setShowPassword] = useState(false);
   const [showConfPassword, setShowConfPassword] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, type } = e.target;
+    let checked = false;
+    if (type === "checkbox") {
+      checked = (e.target as HTMLInputElement).checked;
+    }
     setForm({ ...form, [name]: type === "checkbox" ? checked : value });
   };
 
@@ -41,13 +45,13 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Nombre y Apellido */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <input
+            <input 
               type="text"
               name="nombre"
               placeholder="Nombre*"
               value={form.nombre}
               onChange={handleChange}
-              className="input input-bordered w-full"
+              className="w-full border border-gray-300 rounded-md p-2"
               required
             />
             <input
@@ -56,7 +60,7 @@ export default function RegisterPage() {
               placeholder="Apellido*"
               value={form.apellido}
               onChange={handleChange}
-              className="input input-bordered w-full"
+              className="w-full border border-gray-300 rounded-md p-2"
               required
             />
           </div>
@@ -68,7 +72,7 @@ export default function RegisterPage() {
             placeholder="Correo electrónico*"
             value={form.email}
             onChange={handleChange}
-            className="input input-bordered w-full"
+            className="w-full border border-gray-300 rounded-md p-2"
             required
           />
 
@@ -82,7 +86,7 @@ export default function RegisterPage() {
                 placeholder="Contraseña*"
                 value={form.password}
                 onChange={handleChange}
-                className="input input-bordered w-full pr-10"
+                className="w-full border border-gray-300 rounded-md p-2"
                 required
               />
               <button
@@ -102,7 +106,7 @@ export default function RegisterPage() {
                 placeholder="Confirma contraseña*"
                 value={form.confpassword}
                 onChange={handleChange}
-                className="input input-bordered w-full pr-10"
+                className="w-full border border-gray-300 rounded-md p-2"
                 required
               />
               <button
@@ -122,7 +126,7 @@ export default function RegisterPage() {
             placeholder="Teléfono*"
             value={form.telefono}
             onChange={handleChange}
-            className="input input-bordered w-full"
+            className="w-full border border-gray-300 rounded-md p-2"
             required
           />
 
@@ -133,7 +137,7 @@ export default function RegisterPage() {
             placeholder="Dirección*"
             value={form.direccion}
             onChange={handleChange}
-            className="input input-bordered w-full"
+            className="w-full border border-gray-300 rounded-md p-2"
             required
           />
 
@@ -143,10 +147,12 @@ export default function RegisterPage() {
               name="region"
               value={form.region}
               onChange={handleChange}
-              className="select select-bordered w-full"
+              className={`w-full border border-gray-300 rounded-md p-2 ${
+                form.region === "" ? "text-gray-500" : "text-gray-900"
+              }`}
               required
             >
-              <option value="">Escoge una región</option>
+              <option value="" className="text-blue">Escoge una región</option>
               <option value="rm">Región Metropolitana</option>
               <option value="v">Valparaíso</option>
               <option value="biobio">Biobío</option>
@@ -156,7 +162,9 @@ export default function RegisterPage() {
               name="comuna"
               value={form.comuna}
               onChange={handleChange}
-              className="select select-bordered w-full"
+              className={`w-full border border-gray-300 rounded-md p-2 ${
+                form.region === "" ? "text-gray-500" : "text-gray-900"
+              }`}
               required
             >
               <option value="">Escoge una comuna</option>

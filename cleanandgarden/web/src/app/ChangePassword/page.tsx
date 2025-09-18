@@ -7,7 +7,7 @@ export default function CambioContrasena() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // 👁️ Estados para mostrar/ocultar contraseñas
+  //Estados para mostrar/ocultar contraseñas
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -23,27 +23,27 @@ export default function CambioContrasena() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#FAF7F0] px-4">
       <div className="card w-full max-w-md bg-white shadow-xl p-6">
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">
+        <h1 className="mb-6 text-3xl font-bold text-center text-[#2E5430]">
           Cambio de contraseña
         </h1>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Email */}
           <label className="form-control">
-            <span className="label-text font-medium">Correo electrónico</span>
+            <span className="label-text font-medium mb-3 block">Correo electrónico</span>
             <input
               type="email"
               placeholder="tuemail@ejemplo.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="input input-bordered w-full"
+              className="w-full border border-gray-300 rounded-md p-2"
               required
             />
           </label>
 
           {/* Contraseña actual */}
           <label className="form-control">
-            <span className="label-text font-medium">
+            <span className="label-text font-medium mb-3 block">
               Ingresa tu contraseña actual
             </span>
             <div className="relative">
@@ -52,7 +52,7 @@ export default function CambioContrasena() {
                 placeholder="********"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input input-bordered w-full pr-10"
+                className="w-full border border-gray-300 rounded-md p-2"
                 required
               />
               <button
@@ -67,7 +67,7 @@ export default function CambioContrasena() {
 
           {/* Nueva contraseña */}
           <label className="form-control">
-            <span className="label-text font-medium">
+            <span className="label-text font-medium mb-3 block">
               Ingresa la nueva contraseña
             </span>
             <div className="relative">
@@ -76,7 +76,7 @@ export default function CambioContrasena() {
                 placeholder="********"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="input input-bordered w-full pr-10"
+                className="w-full border border-gray-300 rounded-md p-2"
                 required
               />
               <button
@@ -91,7 +91,7 @@ export default function CambioContrasena() {
 
           {/* Confirmar nueva contraseña */}
           <label className="form-control">
-            <span className="label-text font-medium">
+            <span className="label-text font-medium mb-3 block">
               Confirma la nueva contraseña
             </span>
             <div className="relative">
@@ -100,7 +100,7 @@ export default function CambioContrasena() {
                 placeholder="********"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="input input-bordered w-full pr-10"
+                className="w-full border border-gray-300 rounded-md p-2"
                 required
               />
               <button
@@ -123,10 +123,10 @@ export default function CambioContrasena() {
 
           {/* Botones */}
           <div className="flex gap-3 mt-4">
-            <button type="submit" className="btn bg-green-700 text-white flex-1">
+            <button type="submit" className="btn rounded-lg bg-green-700 text-white flex-1">
               Confirmar cambio
             </button>
-            <button type="button" className="btn bg-red-400 text-white flex-1">
+            <button type="button" className="btn rounded-lg bg-red-400 text-white flex-1">
               Cancelar
             </button>
           </div>
