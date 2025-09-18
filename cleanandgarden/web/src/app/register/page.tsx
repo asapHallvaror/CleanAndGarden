@@ -15,7 +15,13 @@ export default function RegisterPage() {
     terminos: false,
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  // 👁️ Estados para mostrar/ocultar
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfPassword, setShowConfPassword] = useState(false);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value, type, checked } = e.target;
     setForm({ ...form, [name]: type === "checkbox" ? checked : value });
   };
@@ -66,26 +72,47 @@ export default function RegisterPage() {
             required
           />
 
-          {/* Contraseña */}
+          {/* Contraseña y Confirmación */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <input
-              type="password"
-              name="password"
-              placeholder="Contraseña*"
-              value={form.password}
-              onChange={handleChange}
-              className="input input-bordered w-full"
-              required
-            />
-            <input
-              type="password"
-              name="confpassword"
-              placeholder="Confirma contraseña*"
-              value={form.confpassword}
-              onChange={handleChange}
-              className="input input-bordered w-full"
-              required
-            />
+            {/* Contraseña */}
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                placeholder="Contraseña*"
+                value={form.password}
+                onChange={handleChange}
+                className="input input-bordered w-full pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-2.5 text-gray-500"
+              >
+                {showPassword ? "👁️" : "👁️‍🗨️"}
+              </button>
+            </div>
+
+            {/* Confirmar Contraseña */}
+            <div className="relative">
+              <input
+                type={showConfPassword ? "text" : "password"}
+                name="confpassword"
+                placeholder="Confirma contraseña*"
+                value={form.confpassword}
+                onChange={handleChange}
+                className="input input-bordered w-full pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfPassword(!showConfPassword)}
+                className="absolute right-3 top-2.5 text-gray-500"
+              >
+                {showConfPassword ? "👁️" : "👁️‍🗨️"}
+              </button>
+            </div>
           </div>
 
           {/* Teléfono */}
