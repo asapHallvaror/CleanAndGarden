@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es" data-theme="light">
       <body
         className={`light ${poppins.variable} antialiased`}
       >
