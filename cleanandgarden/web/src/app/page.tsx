@@ -1,8 +1,8 @@
 import Image from "next/image";
-import Hero from "./components/Hero";
-import Services from "./components/Services";
-import LatestJobs from "./components/LatestJobs";
-import Location from "./components/Location";
+import Hero from "./components/landing/Hero";
+import Services from "./components/landing/Services";
+import LatestJobs from "./components/landing/LatestJobs";
+import Location from "./components/landing/Location";
 
 export default function Home() {
   return (
