@@ -1,0 +1,435 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model cita {
+  id                                             BigInt        @id @default(autoincrement())
+  cliente_id                                     BigInt
+  jardin_id                                      BigInt
+  servicio_id                                    BigInt
+  tecnico_id                                     BigInt?
+  fecha_hora                                     DateTime      @db.Timestamptz(6)
+  duracion_minutos                               Int
+  estado                                         estado_cita   @default(pendiente)
+  precio_aplicado                                Decimal?      @db.Decimal(12, 2)
+  nombre_servicio_snapshot                       String?       @db.VarChar(100)
+  notas_cliente                                  String?
+  notas_internas                                 String?
+  cancelada_en                                   DateTime?     @db.Timestamptz(6)
+  cancelada_por_usuario_id                       BigInt?
+  cancelada_por_rol                              String?       @db.VarChar(20)
+  motivo_cancelacion                             String?
+  notas_cancelacion                              String?
+  fecha_creacion                                 DateTime      @default(now()) @db.Timestamptz(6)
+  fecha_actualizacion                            DateTime      @default(now()) @db.Timestamptz(6)
+  usuario_cita_cancelada_por_usuario_idTousuario usuario?      @relation("cita_cancelada_por_usuario_idTousuario", fields: [cancelada_por_usuario_id], references: [id], onUpdate: NoAction)
+  usuario_cita_cliente_idTousuario               usuario       @relation("cita_cliente_idTousuario", fields: [cliente_id], references: [id], onUpdate: NoAction)
+  jardin                                         jardin        @relation(fields: [jardin_id], references: [id], onUpdate: NoAction)
+  servicio                                       servicio      @relation(fields: [servicio_id], references: [id], onUpdate: NoAction)
+  usuario_cita_tecnico_idTousuario               usuario?      @relation("cita_tecnico_idTousuario", fields: [tecnico_id], references: [id], onUpdate: NoAction)
+  evento_cita                                    evento_cita[]
+  pago                                           pago[]
+  visita                                         visita?
+
+  @@index([cliente_id, fecha_hora])
+  @@index([estado])
+  @@index([fecha_hora])
+  @@index([tecnico_id, fecha_hora])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model conversacion {
+  id                        BigInt                      @id @default(autoincrement())
+  tipo                      String                      @db.VarChar(20)
+  contexto_id               BigInt?
+  fecha_creacion            DateTime                    @default(now()) @db.Timestamptz(6)
+  mensaje                   mensaje[]
+  participante_conversacion participante_conversacion[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model direccion {
+  id               BigInt   @id @default(autoincrement())
+  propietario_tipo String   @db.VarChar(20)
+  propietario_id   BigInt
+  calle            String?  @db.VarChar(150)
+  comuna           String?  @db.VarChar(100)
+  ciudad           String?  @db.VarChar(100)
+  region           String?  @db.VarChar(100)
+  latitud          Decimal? @db.Decimal(9, 6)
+  longitud         Decimal? @db.Decimal(9, 6)
+
+  @@index([propietario_tipo, propietario_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model disponibilidad {
+  id          BigInt   @id @default(autoincrement())
+  tecnico_id  BigInt
+  dia_semana  Int      @db.SmallInt
+  hora_inicio DateTime @db.Time(6)
+  hora_fin    DateTime @db.Time(6)
+  usuario     usuario  @relation(fields: [tecnico_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tecnico_id, dia_semana, hora_inicio, hora_fin], map: "disponibilidad_tecnico_id_dia_semana_hora_inicio_hora_fin_idx")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model disponibilidad_excepcion {
+  id         BigInt   @id @default(autoincrement())
+  tecnico_id BigInt
+  fecha      DateTime @db.Date
+  disponible Boolean  @default(false)
+  nota       String?
+  usuario    usuario  @relation(fields: [tecnico_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tecnico_id, fecha])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model dispositivo {
+  id               BigInt    @id @default(autoincrement())
+  usuario_id       BigInt
+  plataforma       String    @db.VarChar(20)
+  token_push       String    @unique
+  ultima_vez_visto DateTime? @db.Timestamptz(6)
+  fecha_creacion   DateTime  @default(now()) @db.Timestamptz(6)
+  usuario          usuario   @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model evento_cita {
+  id               BigInt   @id @default(autoincrement())
+  cita_id          BigInt
+  tipo_evento      String   @db.VarChar(20)
+  usuario_actor_id BigInt?
+  rol_actor        String?  @db.VarChar(20)
+  metadatos        Json?
+  fecha_evento     DateTime @default(now()) @db.Timestamptz(6)
+  cita             cita     @relation(fields: [cita_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuario          usuario? @relation(fields: [usuario_actor_id], references: [id], onUpdate: NoAction)
+
+  @@index([cita_id, fecha_evento])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model foto_visita {
+  id             BigInt   @id @default(autoincrement())
+  visita_id      BigInt
+  imagen_id      BigInt
+  etiqueta       String?  @db.VarChar(50)
+  fecha_creacion DateTime @default(now()) @db.Timestamptz(6)
+  imagen         imagen   @relation(fields: [imagen_id], references: [id], onUpdate: NoAction)
+  visita         visita   @relation(fields: [visita_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([visita_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model imagen {
+  id                     BigInt              @id @default(autoincrement())
+  usuario_propietario_id BigInt?
+  tipo                   String?             @db.VarChar(20)
+  clave_storage          String              @unique
+  url_publica            String?
+  ancho                  Int?
+  alto                   Int?
+  peso_bytes             BigInt?
+  tipo_contenido         String?             @db.VarChar(50)
+  hash_sha256            String?             @db.VarChar(64)
+  creada_en              DateTime            @default(now()) @db.Timestamptz(6)
+  eliminada_en           DateTime?           @db.Timestamptz(6)
+  foto_visita            foto_visita[]
+  usuario                usuario?            @relation(fields: [usuario_propietario_id], references: [id], onUpdate: NoAction)
+  jardin                 jardin[]
+  mensaje                mensaje[]
+  pago                   pago[]
+  portafolio_imagen      portafolio_imagen[]
+  portafolio_item        portafolio_item[]
+  servicio               servicio[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model jardin {
+  id                  BigInt   @id @default(autoincrement())
+  cliente_id          BigInt
+  nombre              String   @db.VarChar(100)
+  area_m2             Decimal? @db.Decimal(10, 2)
+  tipo_suelo          String?  @db.VarChar(50)
+  descripcion         String?
+  imagen_principal_id BigInt?
+  activo              Boolean  @default(true)
+  fecha_creacion      DateTime @default(now()) @db.Timestamptz(6)
+  fecha_actualizacion DateTime @default(now()) @db.Timestamptz(6)
+  cita                cita[]
+  usuario             usuario  @relation(fields: [cliente_id], references: [id], onUpdate: NoAction)
+  imagen              imagen?  @relation(fields: [imagen_principal_id], references: [id], onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mensaje {
+  id                BigInt          @id @default(autoincrement())
+  conversacion_id   BigInt
+  remitente_id      BigInt
+  cuerpo            String?
+  adjunto_imagen_id BigInt?
+  creado_en         DateTime        @default(now()) @db.Timestamptz(6)
+  editado_en        DateTime?       @db.Timestamptz(6)
+  eliminado_en      DateTime?       @db.Timestamptz(6)
+  imagen            imagen?         @relation(fields: [adjunto_imagen_id], references: [id], onUpdate: NoAction)
+  conversacion      conversacion    @relation(fields: [conversacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuario           usuario         @relation(fields: [remitente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mensaje_leido     mensaje_leido[]
+
+  @@index([conversacion_id, creado_en])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mensaje_leido {
+  id         BigInt   @id @default(autoincrement())
+  mensaje_id BigInt
+  usuario_id BigInt
+  leido_en   DateTime @default(now()) @db.Timestamptz(6)
+  mensaje    mensaje  @relation(fields: [mensaje_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuario    usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([mensaje_id, usuario_id], map: "mensaje_leido_mensaje_id_usuario_id_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model notificacion {
+  id         BigInt    @id @default(autoincrement())
+  usuario_id BigInt
+  titulo     String    @db.VarChar(150)
+  cuerpo     String?
+  datos      Json?
+  canal      String    @db.VarChar(20)
+  estado     String    @default("pendiente") @db.VarChar(20)
+  error      String?
+  enviada_en DateTime? @db.Timestamptz(6)
+  usuario    usuario   @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([usuario_id, estado])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model pago {
+  id                                            BigInt        @id @default(autoincrement())
+  cita_id                                       BigInt
+  usuario_id                                    BigInt
+  metodo                                        metodo_pago
+  estado                                        estado_pago   @default(pendiente)
+  monto_clp                                     Decimal       @db.Decimal(12, 2)
+  moneda                                        String        @default("CLP") @db.VarChar(10)
+  flow_order_id                                 String?       @db.VarChar(64)
+  flow_token                                    String?       @db.VarChar(128)
+  flow_status                                   String?       @db.VarChar(32)
+  flow_payload                                  Json?
+  comprobante_imagen_id                         BigInt?
+  comprobante_observacion                       String?
+  validado_por_usuario_id                       BigInt?
+  validado_en                                   DateTime?     @db.Timestamptz(6)
+  creado_en                                     DateTime      @default(now()) @db.Timestamptz(6)
+  actualizado_en                                DateTime      @default(now()) @db.Timestamptz(6)
+  cita                                          cita          @relation(fields: [cita_id], references: [id], onUpdate: NoAction)
+  imagen                                        imagen?       @relation(fields: [comprobante_imagen_id], references: [id], onUpdate: NoAction)
+  usuario_pago_usuario_idTousuario              usuario       @relation("pago_usuario_idTousuario", fields: [usuario_id], references: [id], onUpdate: NoAction)
+  usuario_pago_validado_por_usuario_idTousuario usuario?      @relation("pago_validado_por_usuario_idTousuario", fields: [validado_por_usuario_id], references: [id], onUpdate: NoAction)
+  pago_evento                                   pago_evento[]
+
+  @@index([cita_id])
+  @@index([estado])
+  @@index([flow_order_id])
+  @@index([metodo, estado])
+  @@index([usuario_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model pago_evento {
+  id               BigInt       @id @default(autoincrement())
+  pago_id          BigInt
+  tipo_evento      String       @db.VarChar(40)
+  estado_anterior  estado_pago?
+  estado_nuevo     estado_pago?
+  actor_usuario_id BigInt?
+  detalle          Json?
+  creado_en        DateTime     @default(now()) @db.Timestamptz(6)
+  usuario          usuario?     @relation(fields: [actor_usuario_id], references: [id], onUpdate: NoAction)
+  pago             pago         @relation(fields: [pago_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([pago_id, creado_en])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model participante_conversacion {
+  id               BigInt       @id @default(autoincrement())
+  conversacion_id  BigInt
+  usuario_id       BigInt
+  rol_participante String       @db.VarChar(20)
+  conversacion     conversacion @relation(fields: [conversacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuario          usuario      @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conversacion_id, usuario_id], map: "participante_conversacion_conversacion_id_usuario_id_idx")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model perfil_cliente {
+  id      BigInt  @id
+  rut     String? @db.VarChar(20)
+  notas   String?
+  usuario usuario @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model portafolio_imagen {
+  id              BigInt          @id @default(autoincrement())
+  portafolio_id   BigInt
+  imagen_id       BigInt
+  orden           Int?
+  imagen          imagen          @relation(fields: [imagen_id], references: [id], onUpdate: NoAction)
+  portafolio_item portafolio_item @relation(fields: [portafolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([portafolio_id, imagen_id], map: "portafolio_imagen_portafolio_id_imagen_id_idx")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model portafolio_item {
+  id                  BigInt              @id @default(autoincrement())
+  titulo              String              @db.VarChar(150)
+  descripcion         String?
+  imagen_principal_id BigInt?
+  publicado           Boolean             @default(false)
+  publicado_en        DateTime?           @db.Timestamptz(6)
+  creado_en           DateTime            @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime            @default(now()) @db.Timestamptz(6)
+  visita_origen_id    BigInt?
+  portafolio_imagen   portafolio_imagen[]
+  imagen              imagen?             @relation(fields: [imagen_principal_id], references: [id], onUpdate: NoAction)
+  visita              visita?             @relation(fields: [visita_origen_id], references: [id], onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rol {
+  id          BigInt        @id @default(autoincrement())
+  codigo      String        @unique @db.VarChar(20)
+  nombre      String        @db.VarChar(50)
+  usuario_rol usuario_rol[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model servicio {
+  id                  BigInt   @id @default(autoincrement())
+  nombre              String   @unique @db.VarChar(100)
+  descripcion         String?
+  duracion_minutos    Int?
+  precio_clp          Decimal? @db.Decimal(12, 2)
+  imagen_id           BigInt?
+  activo              Boolean  @default(true)
+  fecha_creacion      DateTime @default(now()) @db.Timestamptz(6)
+  fecha_actualizacion DateTime @default(now()) @db.Timestamptz(6)
+  cita                cita[]
+  imagen              imagen?  @relation(fields: [imagen_id], references: [id], onUpdate: NoAction)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model usuario {
+  id                                          BigInt                      @id @default(autoincrement())
+  nombre                                      String                      @db.VarChar(100)
+  email                                       String                      @unique @db.VarChar(150)
+  telefono                                    String?                     @db.VarChar(20)
+  contrasena_hash                             String
+  activo                                      Boolean                     @default(true)
+  fecha_creacion                              DateTime                    @default(now()) @db.Timestamptz(6)
+  fecha_actualizacion                         DateTime                    @default(now()) @db.Timestamptz(6)
+  apellido                                    String?
+  direccion                                   String?
+  region                                      String?
+  comuna                                      String?
+  cita_cita_cancelada_por_usuario_idTousuario cita[]                      @relation("cita_cancelada_por_usuario_idTousuario")
+  cita_cita_cliente_idTousuario               cita[]                      @relation("cita_cliente_idTousuario")
+  cita_cita_tecnico_idTousuario               cita[]                      @relation("cita_tecnico_idTousuario")
+  disponibilidad                              disponibilidad[]
+  disponibilidad_excepcion                    disponibilidad_excepcion[]
+  dispositivo                                 dispositivo[]
+  evento_cita                                 evento_cita[]
+  imagen                                      imagen[]
+  jardin                                      jardin[]
+  mensaje                                     mensaje[]
+  mensaje_leido                               mensaje_leido[]
+  notificacion                                notificacion[]
+  pago_pago_usuario_idTousuario               pago[]                      @relation("pago_usuario_idTousuario")
+  pago_pago_validado_por_usuario_idTousuario  pago[]                      @relation("pago_validado_por_usuario_idTousuario")
+  pago_evento                                 pago_evento[]
+  participante_conversacion                   participante_conversacion[]
+  perfil_cliente                              perfil_cliente?
+  usuario_rol                                 usuario_rol[]
+  visita                                      visita[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model usuario_rol {
+  id         BigInt  @id @default(autoincrement())
+  usuario_id BigInt
+  rol_id     BigInt
+  rol        rol     @relation(fields: [rol_id], references: [id], onUpdate: NoAction)
+  usuario    usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([usuario_id, rol_id], map: "usuario_rol_usuario_id_rol_id_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model visita {
+  id                  BigInt            @id @default(autoincrement())
+  cita_id             BigInt            @unique
+  tecnico_id          BigInt
+  inicio              DateTime?         @db.Timestamptz(6)
+  fin                 DateTime?         @db.Timestamptz(6)
+  resumen             String?
+  insumos             Json?
+  estado              String            @default("abierta") @db.VarChar(20)
+  fecha_creacion      DateTime          @default(now()) @db.Timestamptz(6)
+  fecha_actualizacion DateTime          @default(now()) @db.Timestamptz(6)
+  foto_visita         foto_visita[]
+  portafolio_item     portafolio_item[]
+  cita                cita              @relation(fields: [cita_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuario             usuario           @relation(fields: [tecnico_id], references: [id], onUpdate: NoAction)
+}
+
+enum estado_cita {
+  pendiente
+  confirmada
+  cancelada
+  realizada
+}
+
+enum estado_pago {
+  pendiente
+  aprobado
+  rechazado
+  fallido
+  anulado
+}
+
+enum metodo_pago {
+  flow
+  transferencia
+}

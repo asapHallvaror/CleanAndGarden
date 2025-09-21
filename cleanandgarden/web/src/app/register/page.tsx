@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Swal from "sweetalert2";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -30,9 +31,85 @@ export default function RegisterPage() {
     setForm({ ...form, [name]: type === "checkbox" ? checked : value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Datos enviados:", form);
+  
+    if (form.password !== form.confpassword) {
+      Swal.fire({
+        icon: "error",
+        title: "Las contraseñas no coinciden",
+        toast: true,
+        position: "top-end",
+        timer: 2500,
+        showConfirmButton: false,
+      });
+      return;
+    }
+  
+    try {
+      const res = await fetch("http://localhost:3001/usuario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: form.nombre,
+          apellido: form.apellido,
+          email: form.email,
+          password: form.password,
+          confpassword: form.confpassword,
+          telefono: form.telefono,
+          direccion: form.direccion,
+          region: form.region,
+          comuna: form.comuna,
+          terminos: form.terminos,
+        }),
+      });
+  
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? "Error al registrar usuario");
+      }
+  
+      const data = await res.json();
+      console.log("Usuario creado:", data);
+
+      // Toast de éxito
+      Swal.fire({
+        icon: "success",
+        title: "Cuenta creada",
+        text: "Tu cuenta fue creada correctamente",
+        toast: true,
+        position: "top-end",
+        timer: 3000,
+        showConfirmButton: false,
+      });
+
+      // Opcional: limpiar formulario
+      setForm({
+        nombre: "",
+        apellido: "",
+        email: "",
+        password: "",
+        confpassword: "",
+        telefono: "",
+        direccion: "",
+        region: "",
+        comuna: "",
+        terminos: false,
+      });
+
+      // Opcional: redirigir a login después de un pequeño delay
+      // setTimeout(() => router.push("/login"), 500);
+    } catch (error: any) {
+      Swal.fire({
+        icon: "error",
+        title: "No se pudo registrar",
+        text: error?.message ?? "Ocurrió un error inesperado",
+        toast: true,
+        position: "top-end",
+        timer: 3000,
+        showConfirmButton: false,
+      });
+    }
   };
 
   return (
