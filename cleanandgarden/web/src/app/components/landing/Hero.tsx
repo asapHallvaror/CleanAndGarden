@@ -31,7 +31,7 @@ export default function Hero() {
           <div className="relative">
             <div className="overflow-hidden rounded-3xl">
               <Image
-                src="/images/hero-jardin.png" // pon tu imagen en public/images/hero-jardin.jpg
+                src="/images/hero-paisajismo.png"
                 alt="Jardín colorido con sendero y flores"
                 width={1200}
                 height={800}

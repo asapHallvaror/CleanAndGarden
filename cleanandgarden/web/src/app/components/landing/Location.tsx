@@ -46,11 +46,11 @@ export default function Location() {
               </p>
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <button className="btn bg-red-400 rounded-lg text-white hover:bg-red-500 border-none flex-1">
+            <div className="mt-6 flex flex-col gap-3">
+              <button className="btn bg-red-400 rounded-lg text-white hover:bg-red-500 border-none w-full">
                 Atención en terreno
               </button>
-              <button className="btn bg-[#2E5430] rounded-lg text-white hover:bg-green-700 border-none flex-1">
+              <button className="btn bg-[#2E5430] rounded-lg text-white hover:bg-green-700 border-none w-full">
                 Agendar visita
               </button>
             </div>
