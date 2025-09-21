@@ -99,11 +99,12 @@ export default function RegisterPage() {
 
       // Opcional: redirigir a login después de un pequeño delay
       // setTimeout(() => router.push("/login"), 500);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Ocurrió un error inesperado";
       Swal.fire({
         icon: "error",
         title: "No se pudo registrar",
-        text: error?.message ?? "Ocurrió un error inesperado",
+        text: message,
         toast: true,
         position: "top-end",
         timer: 3000,
