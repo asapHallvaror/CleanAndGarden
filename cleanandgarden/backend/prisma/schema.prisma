@@ -384,6 +384,7 @@ model usuario {
   pago_evento                                 pago_evento[]
   participante_conversacion                   participante_conversacion[]
   perfil_cliente                              perfil_cliente?
+  reset_token                                 reset_token[]
   usuario_rol                                 usuario_rol[]
   visita                                      visita[]
 }
@@ -433,6 +434,17 @@ model region {
   id     BigInt   @id @default(autoincrement())
   nombre String   @unique @db.VarChar(80)
   comuna comuna[]
+}
+
+model reset_token {
+  id         BigInt    @id @default(autoincrement())
+  userId     BigInt
+  token      String    @unique
+  expiresAt  DateTime  @db.Timestamptz(6)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  usuario    usuario   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_reset_token_userid")
 }
 
 enum estado_cita {

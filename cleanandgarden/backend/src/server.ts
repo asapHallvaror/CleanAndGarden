@@ -6,6 +6,14 @@ import { prisma } from './lib/prisma'
 // Bcrypt para hashear contraseñas de forma segura (libre de dependencias nativas con "bcryptjs")
 import bcrypt from 'bcryptjs'
 
+// Importamos crypto para generar tokens seguros.
+import crypto from "crypto";
+// Importamos el transporter de nodemailer para enviar correos electrónicos
+import nodemailer from "nodemailer";
+
+// Importamos tipos de Request y Response de Express para tipar mejor las funciones
+import { Request, Response } from "express";
+
 // Creamos la app de Express (hay que pensarlo como el "router" principal de la API)
 const app = express()
 // Habilita CORS: permite que el front pueda llamar a la api
@@ -210,6 +218,94 @@ app.post("/change-password", async (req, res) => {
     return res.status(500).json({ error: "Error al cambiar la contraseña" });
   }
 });
+
+//----------------------------
+
+
+app.post("/forgot-password", async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    // Buscar usuario (si existe)
+     const user = await prisma.usuario.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Generar token
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // expira en 1 hora
+
+    // Guardar token en la tabla reset_token
+    await prisma.reset_token.create({
+      data: { userId: user.id, token, expiresAt: expires },
+    });
+
+    // Configuración de correo
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Recuperación de contraseña",
+      html: `<p>Haz click en el siguiente enlace para recuperar tu contraseña:</p>
+             <a href="${resetLink}">${resetLink}</a>`,
+    });
+
+    res.json({ message: "Correo de recuperación enviado" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+app.post("/reset-password", async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    const reset = await prisma.reset_token.findUnique({ where: { token } });
+
+    if (!reset || reset.expiresAt < new Date()) {
+      return res.status(400).json({ message: "Token inválido o expirado" });
+    }
+
+    // Hashear nueva contraseña
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.usuario.update({
+      where: { id: reset.userId },
+      data: { contrasena_hash: hashedPassword },
+    });
+
+    // Eliminar token usado
+    await prisma.reset_token.delete({ where: { id: reset.id } });
+
+    res.json({ message: "Contraseña actualizada correctamente" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
