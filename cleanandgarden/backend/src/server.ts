@@ -166,6 +166,55 @@ app.post('/login', async (req, res) => {
   return res.status(200).json({ message: 'Usuario clave correcta' })
 })
 
+
+app.post("/change-password", async (req, res) => {
+  try {
+    const { email, password, newPassword, confirmPassword } = req.body ?? {};
+
+    // Validar campos
+    if (!email || !password || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: "Todos los campos son obligatorios" });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: "Las contraseñas nuevas no coinciden" });
+    }
+
+    // Buscar usuario
+    const usuario = await prisma.usuario.findUnique({ where: { email } });
+    if (!usuario) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Comparar contraseña actual
+    const isMatch = await bcrypt.compare(password, usuario.contrasena_hash);
+    if (!isMatch) {
+      return res.status(401).json({ error: "La contraseña actual es incorrecta" });
+    }
+
+    // Hashear nueva contraseña
+    const saltRounds = 12;
+    const newHash = await bcrypt.hash(newPassword, saltRounds);
+    
+
+    // Actualizar en BD
+    await prisma.usuario.update({
+      where: { email },
+      data: { contrasena_hash: newHash },
+    });
+
+   
+
+    return res.status(200).json({ message: "✅ Contraseña actualizada correctamente" });
+  } catch (err) {
+    console.error("Error en /change-password:", err);
+    return res.status(500).json({ error: "Error al cambiar la contraseña" });
+  }
+});
+
+
+
+
+
 // Leemos el puerto desde las variables de entorno; si no, usamos 3001 por defecto
 // Convierte a Number y arranca el servidor
 const port = Number(process.env.PORT ?? 3001)
