@@ -147,6 +147,7 @@ function ResetPasswordContent() {
   );
 }
 
+// se pusieron dentro de un suspense para evitar el error de Next.js
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={<div>Cargando...</div>}>
