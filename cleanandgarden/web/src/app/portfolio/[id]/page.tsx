@@ -220,7 +220,7 @@ export default function PortfolioDetailPage() {
                     Testimonio del cliente
                   </h3>
                   <blockquote className="text-gray-700 italic mb-3">
-                    "{trabajo.testimonial.texto}"
+                    &ldquo;{trabajo.testimonial.texto}&rdquo;
                   </blockquote>
                   <cite className="text-sm font-medium text-[#2E5430]">
                     — {trabajo.testimonial.autor}

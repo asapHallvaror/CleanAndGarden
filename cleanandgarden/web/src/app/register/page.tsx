@@ -58,7 +58,7 @@ export default function RegisterPage() {
         );
     } else {
       setComunas([]);
-      setForm({ ...form, comunaId: "" });
+      setForm(prevForm => ({ ...prevForm, comunaId: "" }));
     }
   }, [regionId]);
 
