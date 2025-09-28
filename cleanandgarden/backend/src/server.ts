@@ -1,3 +1,6 @@
+// Configurar variables de entorno ANTES de cualquier otra importación
+import 'dotenv/config'
+
 // Importamos Express y CORS: herramientas para crear la API y permitir llamadas desde el front
 import express from 'express'
 import cors from 'cors'
@@ -98,6 +101,61 @@ app.get('/regiones/:id/comunas', async (req, res) => {
   }
 });
 
+// Obtener items del portafolio publicados
+app.get('/portfolio', async (req, res) => {
+  try {
+    const portfolioItems = await prisma.portafolio_item.findMany({
+      where: { 
+        publicado: true 
+      },
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        publicado_en: true,
+        imagen: {
+          select: {
+            url_publica: true,
+            clave_storage: true
+          }
+        },
+        visita: {
+          select: {
+            cita: {
+              select: {
+                cliente_id: true,
+                jardin_id: true,
+                servicio: {
+                  select: {
+                    nombre: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { 
+        publicado_en: 'desc' 
+      }
+    });
+
+    // Transformar los datos para el frontend
+    const portfolioFormatted = portfolioItems.map(item => ({
+      id: Number(item.id),
+      titulo: item.titulo,
+      descripcion: item.descripcion || '',
+      imagenUrl: item.imagen?.url_publica || '/images/placeholder-portfolio.jpg',
+      fecha: item.publicado_en?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+      servicio: item.visita?.cita?.servicio?.nombre || 'Servicio general'
+    }));
+
+    res.json(toJSONSafe(portfolioFormatted));
+  } catch (err: any) {
+    console.error("❌ Error al obtener portfolio:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener portfolio' });
+  }
+});
 
 // Registrar un nuevo usuario
 // - Valida inputs mínimos

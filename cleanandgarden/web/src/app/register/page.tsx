@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // 👈 para redirigir
+import { useRouter } from "next/navigation"; // para redirigir
 import Swal from "sweetalert2";
 
 // Interfaces para los datos que vienen de la base de datos
@@ -25,7 +25,7 @@ export default function RegisterPage() {
     confpassword: "",
     telefono: "",
     direccion: "",
-    comunaId: "", // 👈 solo guardamos comuna
+    comunaId: "", // solo guardamos comuna
     terminos: false,
   });
 
