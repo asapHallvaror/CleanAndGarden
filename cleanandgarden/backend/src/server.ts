@@ -63,6 +63,41 @@ app.get('/usuario', async (req, res) => {
     res.status(500).json({ error: 'No existe la tabla usuario o error en query' })
   }
 })
+app.get('/regiones', async (_req, res) => {
+  try {
+    const regiones = await prisma.region.findMany({
+      select: { id: true, nombre: true },
+      orderBy: { nombre: 'asc' },
+    });
+
+    res.json(toJSONSafe(regiones)); // 👈 convierte BigInt a Number
+  } catch (err: any) {
+    console.error("❌ Error en /regiones:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener regiones' });
+  }
+});
+
+// Listar comunas de una región específica
+app.get('/regiones/:id/comunas', async (req, res) => {
+  try {
+    const regionId = Number(req.params.id);
+    if (isNaN(regionId)) {
+      return res.status(400).json({ error: 'ID de región inválido' });
+    }
+
+    const comunas = await prisma.comuna.findMany({
+      where: { region_id: regionId },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: 'asc' }
+    });
+
+    res.json(toJSONSafe(comunas)); // 👈 convierte BigInt a Number
+  } catch (err: any) {
+    console.error("❌ Error al obtener comunas:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener comunas' });
+  }
+});
+
 
 // Registrar un nuevo usuario
 // - Valida inputs mínimos
@@ -70,7 +105,6 @@ app.get('/usuario', async (req, res) => {
 // - Hashea la contraseña con bcryptjs (12 rondas)
 // - Crea el registro en la tabla `usuario`
 app.post('/usuario', async (req, res) => {
-  console.log('request',req)
   try {
     const {
       nombre,
@@ -79,13 +113,12 @@ app.post('/usuario', async (req, res) => {
       password,
       confpassword,
       telefono,
-      direccion,
-      region,
-      comuna,
+      direccion, // texto: calle
+      comunaId,  // ID de la comuna seleccionada en el front
       terminos,
     } = req.body ?? {}
 
-    // Validaciones básicas
+    // ===== Validaciones =====
     if (!nombre || typeof nombre !== 'string') {
       return res.status(400).json({ error: 'El nombre es requerido' })
     }
@@ -112,22 +145,15 @@ app.post('/usuario', async (req, res) => {
       return res.status(409).json({ error: 'El email ya está registrado' })
     }
 
-    // Hash seguro de contraseña (12 rondas)
-    const saltRounds = 12
-    const contrasena_hash = await bcrypt.hash(password, saltRounds)
-
-    // Crear usuario
-    const nuevo = await prisma.usuario.create({
+    // ===== Crear usuario =====
+    const contrasena_hash = await bcrypt.hash(password, 12)
+    const nuevoUsuario = await prisma.usuario.create({
       data: {
         nombre,
         apellido: apellido || null,
         email,
         telefono: telefono || null,
         contrasena_hash,
-        direccion: direccion || null,
-        region: region || null,
-        comuna: comuna || null,
-        // campos boolean/fecha tienen defaults en el esquema
       },
       select: {
         id: true,
@@ -135,25 +161,45 @@ app.post('/usuario', async (req, res) => {
         apellido: true,
         email: true,
         telefono: true,
-        direccion: true,
-        region: true,
-        comuna: true,
         activo: true,
         fecha_creacion: true,
       },
     })
 
-    return res.status(201).json(toJSONSafe(nuevo))
+    // ===== Crear dirección (opcional) =====
+    if (direccion && comunaId) {
+      await prisma.direccion.create({
+        data: {
+          calle: direccion,
+          usuario: { connect: { id: nuevoUsuario.id } },
+          comuna: { connect: { id: Number(comunaId) } },
+        },
+      })
+    }
 
+    // Devolvemos usuario con su dirección (si existe)
+    const usuarioConDireccion = await prisma.usuario.findUnique({
+      where: { id: nuevoUsuario.id },
+      include: {
+        direccion: {
+          include: {
+            comuna: {
+              include: {
+                region: true, // trae la región automáticamente
+              },
+            },
+          },
+        },
+      },
+    })
+
+    return res.status(201).json(toJSONSafe(usuarioConDireccion))
   } catch (err: any) {
     console.error(err)
-    // Manejo de error por restricción única de Prisma
-    if (err?.code === 'P2002') {
-      return res.status(409).json({ error: 'El email ya está registrado' })
-    }
     return res.status(500).json({ error: 'Error al registrar usuario' })
   }
 })
+
 
 app.post('/login', async (req, res) => {
   // recibes la clave y usuario
@@ -315,3 +361,4 @@ app.post("/reset-password", async (req: Request, res: Response) => {
 // Convierte a Number y arranca el servidor
 const port = Number(process.env.PORT ?? 3001)
 app.listen(port, () => console.log(`🚀 API backend listening on port ${port}`))
+
