@@ -6,6 +6,14 @@ import { prisma } from './lib/prisma'
 // Bcrypt para hashear contraseñas de forma segura (libre de dependencias nativas con "bcryptjs")
 import bcrypt from 'bcryptjs'
 
+// Importamos crypto para generar tokens seguros.
+import crypto from "crypto";
+// Importamos el transporter de nodemailer para enviar correos electrónicos
+import nodemailer from "nodemailer";
+
+// Importamos tipos de Request y Response de Express para tipar mejor las funciones
+import { Request, Response } from "express";
+
 // Creamos la app de Express (hay que pensarlo como el "router" principal de la API)
 const app = express()
 // Habilita CORS: permite que el front pueda llamar a la api
@@ -55,6 +63,41 @@ app.get('/usuario', async (req, res) => {
     res.status(500).json({ error: 'No existe la tabla usuario o error en query' })
   }
 })
+app.get('/regiones', async (_req, res) => {
+  try {
+    const regiones = await prisma.region.findMany({
+      select: { id: true, nombre: true },
+      orderBy: { nombre: 'asc' },
+    });
+
+    res.json(toJSONSafe(regiones)); // 👈 convierte BigInt a Number
+  } catch (err: any) {
+    console.error("❌ Error en /regiones:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener regiones' });
+  }
+});
+
+// Listar comunas de una región específica
+app.get('/regiones/:id/comunas', async (req, res) => {
+  try {
+    const regionId = Number(req.params.id);
+    if (isNaN(regionId)) {
+      return res.status(400).json({ error: 'ID de región inválido' });
+    }
+
+    const comunas = await prisma.comuna.findMany({
+      where: { region_id: regionId },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: 'asc' }
+    });
+
+    res.json(toJSONSafe(comunas)); // 👈 convierte BigInt a Number
+  } catch (err: any) {
+    console.error("❌ Error al obtener comunas:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener comunas' });
+  }
+});
+
 
 // Registrar un nuevo usuario
 // - Valida inputs mínimos
@@ -70,13 +113,12 @@ app.post('/usuario', async (req, res) => {
       password,
       confpassword,
       telefono,
-      direccion,
-      region,
-      comuna,
+      direccion, // texto: calle
+      comunaId,  // ID de la comuna seleccionada en el front
       terminos,
     } = req.body ?? {}
 
-    // Validaciones básicas
+    // ===== Validaciones =====
     if (!nombre || typeof nombre !== 'string') {
       return res.status(400).json({ error: 'El nombre es requerido' })
     }
@@ -103,22 +145,15 @@ app.post('/usuario', async (req, res) => {
       return res.status(409).json({ error: 'El email ya está registrado' })
     }
 
-    // Hash seguro de contraseña (12 rondas)
-    const saltRounds = 12
-    const contrasena_hash = await bcrypt.hash(password, saltRounds)
-
-    // Crear usuario
-    const nuevo = await prisma.usuario.create({
+    // ===== Crear usuario =====
+    const contrasena_hash = await bcrypt.hash(password, 12)
+    const nuevoUsuario = await prisma.usuario.create({
       data: {
         nombre,
         apellido: apellido || null,
         email,
         telefono: telefono || null,
         contrasena_hash,
-        direccion: direccion || null,
-        region: region || null,
-        comuna: comuna || null,
-        // campos boolean/fecha tienen defaults en el esquema
       },
       select: {
         id: true,
@@ -126,26 +161,204 @@ app.post('/usuario', async (req, res) => {
         apellido: true,
         email: true,
         telefono: true,
-        direccion: true,
-        region: true,
-        comuna: true,
         activo: true,
         fecha_creacion: true,
       },
     })
 
-    return res.status(201).json(toJSONSafe(nuevo))
+    // ===== Crear dirección (opcional) =====
+    if (direccion && comunaId) {
+      await prisma.direccion.create({
+        data: {
+          calle: direccion,
+          usuario: { connect: { id: nuevoUsuario.id } },
+          comuna: { connect: { id: Number(comunaId) } },
+        },
+      })
+    }
+
+    // Devolvemos usuario con su dirección (si existe)
+    const usuarioConDireccion = await prisma.usuario.findUnique({
+      where: { id: nuevoUsuario.id },
+      include: {
+        direccion: {
+          include: {
+            comuna: {
+              include: {
+                region: true, // trae la región automáticamente
+              },
+            },
+          },
+        },
+      },
+    })
+
+    return res.status(201).json(toJSONSafe(usuarioConDireccion))
   } catch (err: any) {
     console.error(err)
-    // Manejo de error por restricción única de Prisma
-    if (err?.code === 'P2002') {
-      return res.status(409).json({ error: 'El email ya está registrado' })
-    }
     return res.status(500).json({ error: 'Error al registrar usuario' })
   }
 })
+
+
+app.post('/login', async (req, res) => {
+  // recibes la clave y usuario
+  const { email, password } = req.body ?? {}
+
+  // ir a buscar a la base de datos si exite el usuario y traer la contraseña hasheada, si no existe el usuario, responder que no existe
+  const usuario = await prisma.usuario.findUnique({ where: { email } })
+  if (!usuario) {
+    return res.status(404).json({ error: 'Usuario no encontrado' })
+  }
+  // return res.status(200).json({ message: 'Usuario encontrado', user: toJSONSafe(usuario) })
+  // tomar la contrasela que eviaron en el login , hashearla y compararla con la que esta en la base de datos si son iguales, responder que el login es correcto, si no, responder que la clave es incorrecta
+  const passwordMatch = await bcrypt.compare(password, usuario.contrasena_hash)
+  console.log('passwordMatch', passwordMatch)
+  if (!passwordMatch) {
+    return res.status(401).json({ error: 'Contraseña incorrecta' })
+  }
+  return res.status(200).json({ message: 'Usuario clave correcta' })
+})
+
+
+app.post("/change-password", async (req, res) => {
+  try {
+    const { email, password, newPassword, confirmPassword } = req.body ?? {};
+
+    // Validar campos
+    if (!email || !password || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: "Todos los campos son obligatorios" });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: "Las contraseñas nuevas no coinciden" });
+    }
+
+    // Buscar usuario
+    const usuario = await prisma.usuario.findUnique({ where: { email } });
+    if (!usuario) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Comparar contraseña actual
+    const isMatch = await bcrypt.compare(password, usuario.contrasena_hash);
+    if (!isMatch) {
+      return res.status(401).json({ error: "La contraseña actual es incorrecta" });
+    }
+
+    // Hashear nueva contraseña
+    const saltRounds = 12;
+    const newHash = await bcrypt.hash(newPassword, saltRounds);
+    
+
+    // Actualizar en BD
+    await prisma.usuario.update({
+      where: { email },
+      data: { contrasena_hash: newHash },
+    });
+
+   
+
+    return res.status(200).json({ message: "✅ Contraseña actualizada correctamente" });
+  } catch (err) {
+    console.error("Error en /change-password:", err);
+    return res.status(500).json({ error: "Error al cambiar la contraseña" });
+  }
+});
+
+//----------------------------
+
+
+app.post("/forgot-password", async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    // Buscar usuario (si existe)
+     const user = await prisma.usuario.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Generar token
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // expira en 1 hora
+
+    // Guardar token en la tabla reset_token
+    await prisma.reset_token.create({
+      data: { userId: user.id, token, expiresAt: expires },
+    });
+
+    // Configuración de correo
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Recuperación de contraseña",
+      html: `<p>Haz click en el siguiente enlace para recuperar tu contraseña:</p>
+             <a href="${resetLink}">${resetLink}</a>`,
+    });
+
+    res.json({ message: "Correo de recuperación enviado" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+app.post("/reset-password", async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    const reset = await prisma.reset_token.findUnique({ where: { token } });
+
+    if (!reset || reset.expiresAt < new Date()) {
+      return res.status(400).json({ message: "Token inválido o expirado" });
+    }
+
+    // Hashear nueva contraseña
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.usuario.update({
+      where: { id: reset.userId },
+      data: { contrasena_hash: hashedPassword },
+    });
+
+    // Eliminar token usado
+    await prisma.reset_token.delete({ where: { id: reset.id } });
+
+    res.json({ message: "Contraseña actualizada correctamente" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Leemos el puerto desde las variables de entorno; si no, usamos 3001 por defecto
 // Convierte a Number y arranca el servidor
 const port = Number(process.env.PORT ?? 3001)
 app.listen(port, () => console.log(`🚀 API backend listening on port ${port}`))
+

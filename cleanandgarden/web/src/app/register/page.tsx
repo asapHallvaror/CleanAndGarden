@@ -1,8 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation"; // 👈 para redirigir
 import Swal from "sweetalert2";
 
 export default function RegisterPage() {
+  const router = useRouter();
+
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
@@ -11,14 +14,42 @@ export default function RegisterPage() {
     confpassword: "",
     telefono: "",
     direccion: "",
-    region: "",
-    comuna: "",
+    comunaId: "", // 👈 solo guardamos comuna
     terminos: false,
   });
 
-  // Estados para mostrar/ocultar
   const [showPassword, setShowPassword] = useState(false);
   const [showConfPassword, setShowConfPassword] = useState(false);
+
+  // Estados para regiones/comunas dinámicas
+  const [regiones, setRegiones] = useState<any[]>([]);
+  const [comunas, setComunas] = useState<any[]>([]);
+  const [regionId, setRegionId] = useState("");
+
+  // Cargar regiones al inicio
+  useEffect(() => {
+    fetch("http://localhost:3001/regiones")
+      .then((res) => res.json())
+      .then((data) => setRegiones(data))
+      .catch(() =>
+        Swal.fire("Error", "No se pudieron cargar las regiones", "error")
+      );
+  }, []);
+
+  // Cargar comunas cuando cambie la región
+  useEffect(() => {
+    if (regionId) {
+      fetch(`http://localhost:3001/regiones/${regionId}/comunas`)
+        .then((res) => res.json())
+        .then((data) => setComunas(data))
+        .catch(() =>
+          Swal.fire("Error", "No se pudieron cargar las comunas", "error")
+        );
+    } else {
+      setComunas([]);
+      setForm({ ...form, comunaId: "" });
+    }
+  }, [regionId]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -33,7 +64,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-  
+
     if (form.password !== form.confpassword) {
       Swal.fire({
         icon: "error",
@@ -45,45 +76,33 @@ export default function RegisterPage() {
       });
       return;
     }
-  
+
     try {
       const res = await fetch("http://localhost:3001/usuario", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: form.nombre,
-          apellido: form.apellido,
-          email: form.email,
-          password: form.password,
-          confpassword: form.confpassword,
-          telefono: form.telefono,
-          direccion: form.direccion,
-          region: form.region,
-          comuna: form.comuna,
-          terminos: form.terminos,
-        }),
+        body: JSON.stringify(form),
       });
-  
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error ?? "Error al registrar usuario");
       }
-  
+
       const data = await res.json();
       console.log("Usuario creado:", data);
 
-      // Toast de éxito
       Swal.fire({
         icon: "success",
         title: "Cuenta creada",
         text: "Tu cuenta fue creada correctamente",
         toast: true,
         position: "top-end",
-        timer: 3000,
+        timer: 2000,
         showConfirmButton: false,
       });
 
-      // Opcional: limpiar formulario
+      // Reset de estados
       setForm({
         nombre: "",
         apellido: "",
@@ -92,15 +111,20 @@ export default function RegisterPage() {
         confpassword: "",
         telefono: "",
         direccion: "",
-        region: "",
-        comuna: "",
+        comunaId: "",
         terminos: false,
       });
+      setRegionId("");
+      setShowPassword(false);
+      setShowConfPassword(false);
 
-      // Opcional: redirigir a login después de un pequeño delay
-      // setTimeout(() => router.push("/login"), 500);
+      // Redirección automática al login
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Ocurrió un error inesperado";
+      const message =
+        error instanceof Error ? error.message : "Ocurrió un error inesperado";
       Swal.fire({
         icon: "error",
         title: "No se pudo registrar",
@@ -123,7 +147,7 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Nombre y Apellido */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <input 
+            <input
               type="text"
               name="nombre"
               placeholder="Nombre*"
@@ -154,9 +178,8 @@ export default function RegisterPage() {
             required
           />
 
-          {/* Contraseña y Confirmación */}
+          {/* Contraseñas */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {/* Contraseña */}
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -175,8 +198,6 @@ export default function RegisterPage() {
                 {showPassword ? "👁️" : "👁️‍🗨️"}
               </button>
             </div>
-
-            {/* Confirmar Contraseña */}
             <div className="relative">
               <input
                 type={showConfPassword ? "text" : "password"}
@@ -222,33 +243,35 @@ export default function RegisterPage() {
           {/* Región y Comuna */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <select
-              name="region"
-              value={form.region}
-              onChange={handleChange}
-              className={`w-full border border-gray-300 rounded-md p-2 ${
-                form.region === "" ? "text-gray-500" : "text-gray-900"
-              }`}
+              value={regionId}
+              onChange={(e) => setRegionId(e.target.value)}
+              className="w-full border border-gray-300 rounded-md p-2"
               required
             >
-              <option value="" className="text-blue">Escoge una región</option>
-              <option value="rm">Región Metropolitana</option>
-              <option value="v">Valparaíso</option>
-              <option value="biobio">Biobío</option>
+              <option value="">Escoge una región</option>
+              {Array.isArray(regiones) &&
+                regiones.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nombre}
+                  </option>
+                ))}
             </select>
 
             <select
-              name="comuna"
-              value={form.comuna}
+              name="comunaId"
+              value={form.comunaId}
               onChange={handleChange}
-              className={`w-full border border-gray-300 rounded-md p-2 ${
-                form.region === "" ? "text-gray-500" : "text-gray-900"
-              }`}
+              className="w-full border border-gray-300 rounded-md p-2"
               required
+              disabled={!regionId}
             >
               <option value="">Escoge una comuna</option>
-              <option value="santiago">Santiago</option>
-              <option value="quilpue">Quilpué</option>
-              <option value="concepcion">Concepción</option>
+              {Array.isArray(comunas) &&
+                comunas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -270,7 +293,6 @@ export default function RegisterPage() {
             </span>
           </div>
 
-          {/* Botón */}
           <button
             type="submit"
             className="w-full py-2 text-white rounded-md bg-[#2E5430] hover:bg-green-700"
@@ -278,17 +300,6 @@ export default function RegisterPage() {
             Crear cuenta
           </button>
         </form>
-
-        <p className="mt-6 text-sm text-center text-gray-600">
-          ¿Ya tienes una cuenta?{" "}
-          <a href="/login" className="font-medium text-[#2E5430] hover:underline">
-            Inicia sesión
-          </a>
-        </p>
-
-        <p className="mt-2 text-xs text-center text-gray-500">
-          Tu información personal se mantendrá privada
-        </p>
       </div>
     </div>
   );

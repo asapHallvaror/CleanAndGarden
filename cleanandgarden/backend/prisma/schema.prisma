@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_DIRECT")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -57,17 +58,16 @@ model conversacion {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model direccion {
-  id               BigInt   @id @default(autoincrement())
-  propietario_tipo String   @db.VarChar(20)
-  propietario_id   BigInt
-  calle            String?  @db.VarChar(150)
-  comuna           String?  @db.VarChar(100)
-  ciudad           String?  @db.VarChar(100)
-  region           String?  @db.VarChar(100)
-  latitud          Decimal? @db.Decimal(9, 6)
-  longitud         Decimal? @db.Decimal(9, 6)
+  id         BigInt   @id @default(autoincrement())
+  calle      String?  @db.VarChar(150)
+  comuna_id  BigInt?
+  usuario_id BigInt?
+  comuna     comuna?  @relation(fields: [comuna_id], references: [id], onDelete: Restrict)
+  usuario    usuario? @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  jardin     jardin[]
 
-  @@index([propietario_tipo, propietario_id])
+  @@index([comuna_id], map: "idx_direccion_comuna")
+  @@index([usuario_id], map: "idx_direccion_usuario")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -163,19 +163,23 @@ model imagen {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model jardin {
-  id                  BigInt   @id @default(autoincrement())
+  id                  BigInt     @id @default(autoincrement())
   cliente_id          BigInt
-  nombre              String   @db.VarChar(100)
-  area_m2             Decimal? @db.Decimal(10, 2)
-  tipo_suelo          String?  @db.VarChar(50)
+  nombre              String     @db.VarChar(100)
+  area_m2             Decimal?   @db.Decimal(10, 2)
+  tipo_suelo          String?    @db.VarChar(50)
   descripcion         String?
   imagen_principal_id BigInt?
-  activo              Boolean  @default(true)
-  fecha_creacion      DateTime @default(now()) @db.Timestamptz(6)
-  fecha_actualizacion DateTime @default(now()) @db.Timestamptz(6)
+  activo              Boolean    @default(true)
+  fecha_creacion      DateTime   @default(now()) @db.Timestamptz(6)
+  fecha_actualizacion DateTime   @default(now()) @db.Timestamptz(6)
+  direccion_id        BigInt?
   cita                cita[]
-  usuario             usuario  @relation(fields: [cliente_id], references: [id], onUpdate: NoAction)
-  imagen              imagen?  @relation(fields: [imagen_principal_id], references: [id], onUpdate: NoAction)
+  usuario             usuario    @relation(fields: [cliente_id], references: [id], onUpdate: NoAction)
+  direccion           direccion? @relation(fields: [direccion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  imagen              imagen?    @relation(fields: [imagen_principal_id], references: [id], onUpdate: NoAction)
+
+  @@index([direccion_id], map: "idx_jardin_direccion")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -360,12 +364,10 @@ model usuario {
   fecha_creacion                              DateTime                    @default(now()) @db.Timestamptz(6)
   fecha_actualizacion                         DateTime                    @default(now()) @db.Timestamptz(6)
   apellido                                    String?
-  direccion                                   String?
-  region                                      String?
-  comuna                                      String?
   cita_cita_cancelada_por_usuario_idTousuario cita[]                      @relation("cita_cancelada_por_usuario_idTousuario")
   cita_cita_cliente_idTousuario               cita[]                      @relation("cita_cliente_idTousuario")
   cita_cita_tecnico_idTousuario               cita[]                      @relation("cita_tecnico_idTousuario")
+  direccion                                   direccion[]
   disponibilidad                              disponibilidad[]
   disponibilidad_excepcion                    disponibilidad_excepcion[]
   dispositivo                                 dispositivo[]
@@ -380,6 +382,7 @@ model usuario {
   pago_evento                                 pago_evento[]
   participante_conversacion                   participante_conversacion[]
   perfil_cliente                              perfil_cliente?
+  reset_token                                 reset_token[]
   usuario_rol                                 usuario_rol[]
   visita                                      visita[]
 }
@@ -412,6 +415,34 @@ model visita {
   portafolio_item     portafolio_item[]
   cita                cita              @relation(fields: [cita_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   usuario             usuario           @relation(fields: [tecnico_id], references: [id], onUpdate: NoAction)
+}
+
+model comuna {
+  id        BigInt      @id @default(autoincrement())
+  region_id BigInt
+  nombre    String      @db.VarChar(100)
+  region    region      @relation(fields: [region_id], references: [id])
+  direccion direccion[]
+
+  @@unique([region_id, nombre], map: "comuna_region_nombre_uniq")
+  @@index([region_id], map: "idx_comuna_region")
+}
+
+model region {
+  id     BigInt   @id @default(autoincrement())
+  nombre String   @unique @db.VarChar(80)
+  comuna comuna[]
+}
+
+model reset_token {
+  id         BigInt    @id @default(autoincrement())
+  userId     BigInt
+  token      String    @unique
+  expiresAt  DateTime  @db.Timestamptz(6)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  usuario    usuario   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_reset_token_userid")
 }
 
 enum estado_cita {

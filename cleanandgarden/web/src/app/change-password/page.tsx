@@ -7,17 +7,59 @@ export default function CambioContrasena() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  //Estados para mostrar/ocultar contraseñas
+  // Estados para mostrar/ocultar contraseñas
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Estados de mensajes
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Email:", email);
-    console.log("Password actual:", password);
-    console.log("Nueva Password:", newPassword);
-    console.log("Confirmar Password:", confirmPassword);
+    setError("");
+    setSuccess("");
+
+    // Validación en frontend antes de enviar
+    if (newPassword !== confirmPassword) {
+      setError("❌ Las contraseñas nuevas no coinciden");
+      return;
+    }
+
+    try {
+      const res = await fetch("http://localhost:3001/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, newPassword, confirmPassword }),
+      });
+
+      const data = await res.json();
+      console.log("Respuesta backend:", data);
+
+      if (res.ok) {
+        setSuccess("✅ Contraseña actualizada correctamente");
+        // limpiar campos
+        setEmail("");
+        setPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        // limpiar mensaje después de 3 segundos
+        setTimeout(() => setSuccess(""), 3000);
+
+        // 👁️ Resetear visibilidad
+        setShowPassword(false);
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
+      } else {
+        setError(`❌ ${data.error}`);
+        // limpiar error después de 3 segundos
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error al conectar con backend:", err);
+      setError("❌ Error de conexión con el servidor");
+    }
   };
 
   return (
@@ -27,10 +69,24 @@ export default function CambioContrasena() {
           Cambio de contraseña
         </h1>
 
+        {/* Alertas */}
+        {error && (
+          <div className="alert alert-error shadow-lg mb-4">
+            <span>{error}</span>
+          </div>
+        )}
+        {success && (
+          <div className="alert alert-success shadow-lg mb-4">
+            <span>{success}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Email */}
           <label className="form-control">
-            <span className="label-text font-medium mb-3 block">Correo electrónico</span>
+            <span className="label-text font-medium mb-3 block">
+              Correo electrónico
+            </span>
             <input
               type="email"
               placeholder="tuemail@ejemplo.com"
@@ -123,10 +179,31 @@ export default function CambioContrasena() {
 
           {/* Botones */}
           <div className="flex gap-3 mt-4">
-            <button type="submit" className="btn rounded-lg bg-green-700 text-white flex-1">
+            <button
+              type="submit"
+              className="btn rounded-lg bg-green-700 text-white flex-1"
+            >
               Confirmar cambio
             </button>
-            <button type="button" className="btn rounded-lg bg-red-400 text-white flex-1">
+            <button
+              type="button"
+              className="btn rounded-lg bg-red-400 text-white flex-1"
+              onClick={() => {
+                setEmail("");
+                setPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+                setError("");
+                setSuccess("");
+
+                // 👁️ Resetear visibilidad
+                setShowPassword(false);
+                setShowNewPassword(false);
+                setShowConfirmPassword(false);
+
+                
+              }}
+            >
               Cancelar
             </button>
           </div>
