@@ -3,6 +3,17 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation"; // 👈 para redirigir
 import Swal from "sweetalert2";
 
+// Interfaces para los datos que vienen de la base de datos
+interface Region {
+  id: string;
+  nombre: string;
+}
+
+interface Comuna {
+  id: string;
+  nombre: string;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
 
@@ -22,8 +33,8 @@ export default function RegisterPage() {
   const [showConfPassword, setShowConfPassword] = useState(false);
 
   // Estados para regiones/comunas dinámicas
-  const [regiones, setRegiones] = useState<any[]>([]);
-  const [comunas, setComunas] = useState<any[]>([]);
+  const [regiones, setRegiones] = useState<Region[]>([]);
+  const [comunas, setComunas] = useState<Comuna[]>([]);
   const [regionId, setRegionId] = useState("");
 
   // Cargar regiones al inicio
