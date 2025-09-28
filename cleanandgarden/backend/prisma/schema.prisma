@@ -360,13 +360,14 @@ model usuario {
   email                                       String                      @unique @db.VarChar(150)
   telefono                                    String?                     @db.VarChar(20)
   contrasena_hash                             String
-  activo                                      Boolean                     @default(true)
+  activo                                      Boolean                     @default(false)
   fecha_creacion                              DateTime                    @default(now()) @db.Timestamptz(6)
   fecha_actualizacion                         DateTime                    @default(now()) @db.Timestamptz(6)
   apellido                                    String?
   cita_cita_cancelada_por_usuario_idTousuario cita[]                      @relation("cita_cancelada_por_usuario_idTousuario")
   cita_cita_cliente_idTousuario               cita[]                      @relation("cita_cliente_idTousuario")
   cita_cita_tecnico_idTousuario               cita[]                      @relation("cita_tecnico_idTousuario")
+  confirm_token                               confirm_token[]
   direccion                                   direccion[]
   disponibilidad                              disponibilidad[]
   disponibilidad_excepcion                    disponibilidad_excepcion[]
@@ -443,6 +444,15 @@ model reset_token {
   usuario    usuario   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([userId], map: "idx_reset_token_userid")
+}
+
+model confirm_token {
+  id         BigInt    @id @default(autoincrement())
+  userid     BigInt?
+  token      String    @unique
+  expiresat  DateTime  @db.Timestamptz(6)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  usuario    usuario?  @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 enum estado_cita {

@@ -157,6 +157,131 @@ app.get('/portfolio', async (req, res) => {
   }
 });
 
+// Obtener trabajo específico del portfolio por ID
+app.get('/portfolio/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const portfolioId = Number(id);
+
+    if (isNaN(portfolioId)) {
+      return res.status(400).json({ error: 'ID de trabajo inválido' });
+    }
+
+    const portfolioItem = await prisma.portafolio_item.findUnique({
+      where: { 
+        id: portfolioId,
+        publicado: true 
+      },
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        publicado_en: true,
+        creado_en: true,
+        imagen: {
+          select: {
+            url_publica: true,
+            clave_storage: true
+          }
+        },
+        portafolio_imagen: {
+          select: {
+            imagen: {
+              select: {
+                url_publica: true
+              }
+            }
+          }
+        },
+        visita: {
+          select: {
+            resumen: true,
+            inicio: true,
+            fin: true,
+            cita: {
+              select: {
+                cliente_id: true,
+                jardin_id: true,
+                precio_aplicado: true,
+                servicio: {
+                  select: {
+                    nombre: true,
+                    duracion_minutos: true
+                  }
+                },
+                usuario_cita_cliente_idTousuario: {
+                  select: {
+                    nombre: true,
+                    email: true
+                  }
+                },
+                jardin: {
+                  select: {
+                    direccion: {
+                      select: {
+                        calle: true,
+                        comuna: {
+                          select: {
+                            nombre: true,
+                            region: {
+                              select: {
+                                nombre: true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!portfolioItem) {
+      return res.status(404).json({ error: 'Trabajo no encontrado' });
+    }
+
+    // Calcular duración si hay fechas de inicio y fin
+    let duracionTexto = null;
+    if (portfolioItem.visita?.inicio && portfolioItem.visita?.fin) {
+      const duracion = new Date(portfolioItem.visita.fin).getTime() - new Date(portfolioItem.visita.inicio).getTime();
+      const horas = Math.floor(duracion / (1000 * 60 * 60));
+      const minutos = Math.floor((duracion % (1000 * 60 * 60)) / (1000 * 60));
+      duracionTexto = `${horas}h ${minutos}min`;
+    }
+
+    // Formatear datos para el frontend
+    const trabajoDetalle = {
+      id: Number(portfolioItem.id),
+      titulo: portfolioItem.titulo,
+      descripcion: portfolioItem.descripcion || 'Proyecto realizado con dedicación y profesionalismo.',
+      imagenUrl: portfolioItem.imagen?.url_publica || '/images/placeholder-portfolio.jpg',
+      fecha: portfolioItem.publicado_en?.toISOString().split('T')[0] || portfolioItem.creado_en.toISOString().split('T')[0],
+      servicio: portfolioItem.visita?.cita?.servicio?.nombre || 'Servicio general',
+      cliente: portfolioItem.visita?.cita?.usuario_cita_cliente_idTousuario?.nombre || null,
+      ubicacion: portfolioItem.visita?.cita?.jardin?.direccion ? 
+        `${portfolioItem.visita.cita.jardin.direccion.comuna?.nombre}, ${portfolioItem.visita.cita.jardin.direccion.comuna?.region?.nombre}` : null,
+      duracion: duracionTexto,
+      precio: portfolioItem.visita?.cita?.precio_aplicado ? Number(portfolioItem.visita.cita.precio_aplicado) : null,
+      galeria: portfolioItem.portafolio_imagen?.map(img => img.imagen.url_publica).filter(Boolean) || [],
+      // Agregar testimonial si hay resumen de la visita
+      testimonial: portfolioItem.visita?.resumen ? {
+        texto: portfolioItem.visita.resumen,
+        autor: portfolioItem.visita.cita?.usuario_cita_cliente_idTousuario?.nombre || 'Cliente satisfecho'
+      } : null
+    };
+
+    res.json(toJSONSafe(trabajoDetalle));
+  } catch (err: any) {
+    console.error("❌ Error al obtener trabajo del portfolio:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener trabajo' });
+  }
+});
+
 // Obtener servicios activos
 app.get('/servicios', async (req, res) => {
   try {

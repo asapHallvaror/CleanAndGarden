@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 
 export interface Trabajo {
   id: number;
@@ -10,6 +11,7 @@ export interface Trabajo {
 }
 
 export default function PortafolioCard({ trabajo }: { trabajo: Trabajo }) {
+  const router = useRouter();
   const fechaFormateada = new Date(trabajo.fecha).toLocaleString("es-ES", {
     month: "long",
     year: "numeric",
@@ -33,7 +35,10 @@ export default function PortafolioCard({ trabajo }: { trabajo: Trabajo }) {
         <span className="px-3 py-1 bg-gray-200 rounded-lg text-sm">
           {fechaFormateada}
         </span>
-        <button className="inline-block rounded-md bg-[#2E5430] px-6 py-3 font-semibold text-white shadow-sm hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2E5430] mt-3 w-full">
+        <button 
+          onClick={() => router.push(`/portfolio/${trabajo.id}`)}
+          className="inline-block rounded-md bg-[#2E5430] px-6 py-3 font-semibold text-white shadow-sm hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2E5430] mt-3 w-full transition-colors"
+        >
           Ver detalle
         </button>
       </div>
