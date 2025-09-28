@@ -157,6 +157,48 @@ app.get('/portfolio', async (req, res) => {
   }
 });
 
+// Obtener servicios activos
+app.get('/servicios', async (req, res) => {
+  try {
+    const servicios = await prisma.servicio.findMany({
+      where: { 
+        activo: true 
+      },
+      select: {
+        id: true,
+        nombre: true,
+        descripcion: true,
+        duracion_minutos: true,
+        precio_clp: true,
+        imagen: {
+          select: {
+            url_publica: true,
+            clave_storage: true
+          }
+        }
+      },
+      orderBy: { 
+        nombre: 'asc' 
+      }
+    });
+
+    // Transformar los datos para el frontend
+    const serviciosFormatted = servicios.map(servicio => ({
+      id: String(servicio.id),
+      title: servicio.nombre,
+      description: servicio.descripcion || 'Servicio profesional de calidad.',
+      imageUrl: servicio.imagen?.url_publica || '/images/placeholder-service.jpg',
+      duracion: servicio.duracion_minutos || 0,
+      precio: servicio.precio_clp ? Number(servicio.precio_clp) : null
+    }));
+
+    res.json(toJSONSafe(serviciosFormatted));
+  } catch (err: any) {
+    console.error("❌ Error al obtener servicios:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener servicios' });
+  }
+});
+
 // Registrar un nuevo usuario
 // - Valida inputs mínimos
 // - Verifica que el email no exista
@@ -345,6 +387,17 @@ app.post("/forgot-password", async (req: Request, res: Response) => {
       data: { userId: user.id, token, expiresAt: expires },
     });
 
+    // Verificar variables de entorno
+    console.log("🔍 EMAIL_USER:", process.env.EMAIL_USER ? "✅ Configurado" : "❌ Falta");
+    console.log("🔍 EMAIL_PASS:", process.env.EMAIL_PASS ? "✅ Configurado" : "❌ Falta");
+    
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      return res.status(500).json({ 
+        error: "Configuración de email incompleta",
+        details: "EMAIL_USER o EMAIL_PASS no están configurados"
+      });
+    }
+
     // Configuración de correo
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -366,8 +419,18 @@ app.post("/forgot-password", async (req: Request, res: Response) => {
 
     res.json({ message: "Correo de recuperación enviado" });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("❌ Error en forgot-password:", error);
+    
+    // Más detalles del error
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
+    
+    res.status(500).json({ 
+      error: "Error interno del servidor",
+      details: error instanceof Error ? error.message : "Error desconocido"
+    });
   }
 });
 
@@ -414,6 +477,13 @@ app.post("/reset-password", async (req: Request, res: Response) => {
 
 
 
+
+// Verificar variables de entorno al inicio
+console.log("🔧 Verificando configuración...");
+console.log("📧 EMAIL_USER:", process.env.EMAIL_USER ? "✅ Configurado" : "❌ Falta");
+console.log("🔑 EMAIL_PASS:", process.env.EMAIL_PASS ? "✅ Configurado" : "❌ Falta");
+console.log("🌐 FRONTEND_URL:", process.env.FRONTEND_URL || "❌ Falta");
+console.log("💾 DATABASE_URL:", process.env.DATABASE_URL ? "✅ Configurado" : "❌ Falta");
 
 // Leemos el puerto desde las variables de entorno; si no, usamos 3001 por defecto
 // Convierte a Number y arranca el servidor
