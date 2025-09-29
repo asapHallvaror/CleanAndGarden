@@ -447,25 +447,77 @@ app.get("/confirm-email/:token", async (req, res) => {
   try {
     const { token } = req.params
 
-    const confirm = await prisma.confirm_token.findUnique({ where: { token } })
-
-    if (!confirm || confirm.expiresAt < new Date()) {
-      return res.status(400).json({ success: false, message: "Token inválido o expirado" })
+    // Validar que el token no esté vacío
+    if (!token || token.trim() === '') {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Token requerido" 
+      })
     }
 
-    // Activar usuario
+    console.log("🔍 Buscando token:", token)
+
+    // Buscar el token en la base de datos
+    const confirm = await prisma.confirm_token.findUnique({ 
+      where: { token },
+      include: {
+        usuario: {
+          select: { id: true, email: true, activo: true }
+        }
+      }
+    })
+
+    console.log("📄 Token encontrado:", confirm ? "Sí" : "No")
+
+    if (!confirm) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Token no encontrado" 
+      })
+    }
+
+    // Verificar si el token ha expirado
+    const now = new Date()
+    if (confirm.expiresAt < now) {
+      console.log("⏰ Token expirado:", confirm.expiresAt, "vs", now)
+      return res.status(400).json({ 
+        success: false, 
+        message: "Token expirado" 
+      })
+    }
+
+    // Verificar si el usuario ya está activo
+    if (confirm.usuario.activo) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "La cuenta ya está activada" 
+      })
+    }
+
+    console.log("✅ Activando usuario ID:", confirm.userId)
+
+    // Activar usuario - usar BigInt directamente sin conversión
     await prisma.usuario.update({
-      where: { id: Number(confirm.userId) }, // 👈 userId correcto
+      where: { id: confirm.userId },
       data: { activo: true },
     })
 
     // Eliminar token usado
     await prisma.confirm_token.delete({ where: { id: confirm.id } })
 
-    return res.json({ success: true, message: "✅ Cuenta activada correctamente" })
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ success: false, message: "Error al confirmar cuenta" })
+    console.log("🎉 Usuario activado exitosamente:", confirm.usuario.email)
+
+    return res.json({ 
+      success: true, 
+      message: "✅ Cuenta activada correctamente" 
+    })
+  } catch (err: any) {
+    console.error("❌ Error al confirmar cuenta:", err)
+    res.status(500).json({ 
+      success: false, 
+      message: "Error interno del servidor al confirmar cuenta",
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    })
   }
 })
 

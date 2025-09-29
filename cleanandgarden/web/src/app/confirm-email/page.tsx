@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Swal from "sweetalert2";
 
-export default function ConfirmEmailPage() {
+// Componente interno que usa useSearchParams
+function ConfirmEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token"); // 👈 obtenemos el token de la URL
   const [loading, setLoading] = useState(true);
@@ -69,5 +70,25 @@ export default function ConfirmEmailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Componente de loading para Suspense
+function ConfirmEmailLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-[#fefaf2]">
+      <div className="p-6 bg-white rounded-lg shadow-md max-w-md text-center">
+        <p className="text-gray-600">Cargando...</p>
+      </div>
+    </div>
+  );
+}
+
+// Componente principal con Suspense boundary
+export default function ConfirmEmailPage() {
+  return (
+    <Suspense fallback={<ConfirmEmailLoading />}>
+      <ConfirmEmailContent />
+    </Suspense>
   );
 }
