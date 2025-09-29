@@ -24,7 +24,11 @@ export default function Navbar() {
       </div>
       {/* Botón de autenticación a la derecha en desktop */}
       <div className="navbar-end hidden lg:flex">
-        <a href="#" className="btn rounded-lg" style={{ backgroundColor: '#4a7e49', color: '#fff', border: 'none' }}>Regístrate o inicia sesión</a>
+        <Link href="/login">
+          <span className="btn rounded-lg" style={{ backgroundColor: '#4a7e49', color: '#fff', border: 'none' }}>
+            Regístrate o inicia sesión
+          </span>
+        </Link>
       </div>
       {/* Menú móvil DaisyUI */}
       <div className="lg:hidden navbar-end" style={{ backgroundColor: '#f5e9d7' }}>
@@ -42,7 +46,13 @@ export default function Navbar() {
             <li><Link href="/our-services">Servicios</Link></li>
             <li><Link href="/portfolio">Portafolio</Link></li>
             <li><Link href="/book-appointment">Agenda tu hora</Link></li>
-            <li><a href="#" className="btn rounded-lg w-full" style={{ backgroundColor: '#4a7e49', color: '#fff', border: 'none' }}>Regístrate o inicia sesión</a></li>
+            <li>
+              <Link href="/login">
+                <span className="btn rounded-lg w-full" style={{ backgroundColor: '#4a7e49', color: '#fff', border: 'none' }}>
+                  Regístrate o inicia sesión
+                </span>
+              </Link>
+            </li>
           </ul>
         </div>
       </div>

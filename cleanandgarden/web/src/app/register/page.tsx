@@ -24,7 +24,7 @@ export default function RegisterPage() {
     confpassword: "",
     telefono: "",
     direccion: "",
-    comunaId: "", // 👈 solo guardamos comuna
+    comunaId: "", // solo guardamos comuna
     terminos: false,
   });
 
@@ -63,7 +63,7 @@ export default function RegisterPage() {
         });
     } else {
       setComunas([]);
-      setForm({ ...form, comunaId: "" });
+      setForm(prevForm => ({ ...prevForm, comunaId: "" }));
     }
   }, [regionId]);
 

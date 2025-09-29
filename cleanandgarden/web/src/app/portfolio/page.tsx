@@ -1,35 +1,36 @@
+// src/app/portfolio/page.tsx
 "use client";
 import { useState, useEffect } from "react";
-import ServicesList from "../components/our-services/ServicesList";
-import ServicesCTA from "../components/our-services/ServicesCTA";
-import { Service } from "../components/our-services/ServiceCard";
+import PortafolioList from "../components/portfolio/PortfolioList";
+import PortfolioCTA from "../components/portfolio/PortflioCTA";
+import { Trabajo } from "../components/portfolio/PortfolioCard";
 
-export default function OurServicesPage() {
-  const [services, setServices] = useState<Service[]>([]);
+export default function PortfolioPage() {
+  const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchServices = async () => {
+    const fetchPortfolio = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:3001/servicios');
+        const response = await fetch('http://localhost:3001/portfolio');
         
         if (!response.ok) {
-          throw new Error('Error al cargar los servicios');
+          throw new Error('Error al cargar el portfolio');
         }
         
         const data = await response.json();
-        setServices(data);
+        setTrabajos(data);
       } catch (err) {
-        console.error('Error fetching services:', err);
+        console.error('Error fetching portfolio:', err);
         setError(err instanceof Error ? err.message : 'Error desconocido');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchServices();
+    fetchPortfolio();
   }, []);
 
   if (isLoading) {
@@ -37,21 +38,18 @@ export default function OurServicesPage() {
       <main>
         <div className="bg-[#fefaf2] py-12 max-w-6xl mx-auto px-4">
           <h1 className="text-3xl font-extrabold text-[#2E5430] text-center">
-            Nuestros servicios
+            Portafolio
           </h1>
           <p className="text-center text-gray-700 mb-10">
-            Cargando nuestros servicios...
+            Cargando nuestros últimos trabajos...
           </p>
-          <div className="space-y-8">
+          <div className="grid gap-6 md:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="card lg:card-side bg-base-100 shadow-xl overflow-hidden animate-pulse">
-                <div className="lg:w-1/3 h-64 bg-gray-300"></div>
-                <div className="card-body lg:w-2/3">
-                  <div className="h-6 bg-gray-300 rounded mb-4"></div>
-                  <div className="h-4 bg-gray-300 rounded mb-2"></div>
-                  <div className="h-4 bg-gray-300 rounded mb-4 w-3/4"></div>
-                  <div className="h-10 bg-gray-300 rounded w-1/4"></div>
-                </div>
+              <div key={i} className="rounded-2xl shadow p-4 bg-white animate-pulse">
+                <div className="h-40 w-full bg-gray-300 rounded-lg mb-4"></div>
+                <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                <div className="h-3 bg-gray-300 rounded mb-4"></div>
+                <div className="h-8 bg-gray-300 rounded"></div>
               </div>
             ))}
           </div>
@@ -65,7 +63,7 @@ export default function OurServicesPage() {
       <main>
         <div className="bg-[#fefaf2] py-12 max-w-6xl mx-auto px-4">
           <h1 className="text-3xl font-extrabold text-[#2E5430] text-center">
-            Nuestros servicios
+            Portafolio
           </h1>
           <div className="text-center text-red-600 mb-10">
             <p className="text-xl mb-4">⚠️ {error}</p>
@@ -89,22 +87,24 @@ export default function OurServicesPage() {
       <main>
         <div className="bg-[#fefaf2] py-12 max-w-6xl mx-auto px-4">
           <h1 className="text-3xl font-extrabold text-[#2E5430] text-center">
-            Nuestros servicios
+            Portafolio
           </h1>
           <p className="text-center text-gray-700 mb-10">
-            Aquí te decimos lo que hacemos en cada servicio.
+            Aquí puedes ver algunos de nuestros últimos trabajos.
           </p>
-          {services.length > 0 ? (
-            <ServicesList services={services} />
+          {trabajos.length > 0 ? (
+            <PortafolioList trabajos={trabajos} />
           ) : (
             <div className="text-center text-gray-600 py-12">
-              <p className="text-xl mb-4">🔧 No hay servicios disponibles</p>
-              <p>Vuelve pronto para ver nuestros servicios.</p>
+              <p className="text-xl mb-4">No hay trabajos publicados aún</p>
+              <p>Vuelve pronto para ver nuestros últimos proyectos.</p>
             </div>
           )}
         </div>
       </main>
-      <ServicesCTA />
+      <footer>
+        <PortfolioCTA />
+      </footer>
     </>
   );
 }

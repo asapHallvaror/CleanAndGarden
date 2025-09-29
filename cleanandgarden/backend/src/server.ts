@@ -1,3 +1,6 @@
+// Configurar variables de entorno ANTES de cualquier otra importación
+import 'dotenv/config'
+
 // Importamos Express y CORS: herramientas para crear la API y permitir llamadas desde el front
 import express from 'express'
 import cors from 'cors'
@@ -98,6 +101,228 @@ app.get('/regiones/:id/comunas', async (req, res) => {
   }
 });
 
+// Obtener items del portafolio publicados
+app.get('/portfolio', async (req, res) => {
+  try {
+    const portfolioItems = await prisma.portafolio_item.findMany({
+      where: { 
+        publicado: true 
+      },
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        publicado_en: true,
+        imagen: {
+          select: {
+            url_publica: true,
+            clave_storage: true
+          }
+        },
+        visita: {
+          select: {
+            cita: {
+              select: {
+                cliente_id: true,
+                jardin_id: true,
+                servicio: {
+                  select: {
+                    nombre: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { 
+        publicado_en: 'desc' 
+      }
+    });
+
+    // Transformar los datos para el frontend
+    const portfolioFormatted = portfolioItems.map(item => ({
+      id: Number(item.id),
+      titulo: item.titulo,
+      descripcion: item.descripcion || '',
+      imagenUrl: item.imagen?.url_publica || '/images/placeholder-portfolio.jpg',
+      fecha: item.publicado_en?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+      servicio: item.visita?.cita?.servicio?.nombre || 'Servicio general'
+    }));
+
+    res.json(toJSONSafe(portfolioFormatted));
+  } catch (err: any) {
+    console.error("❌ Error al obtener portfolio:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener portfolio' });
+  }
+});
+
+// Obtener trabajo específico del portfolio por ID
+app.get('/portfolio/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const portfolioId = Number(id);
+
+    if (isNaN(portfolioId)) {
+      return res.status(400).json({ error: 'ID de trabajo inválido' });
+    }
+
+    const portfolioItem = await prisma.portafolio_item.findUnique({
+      where: { 
+        id: portfolioId,
+        publicado: true 
+      },
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        publicado_en: true,
+        creado_en: true,
+        imagen: {
+          select: {
+            url_publica: true,
+            clave_storage: true
+          }
+        },
+        portafolio_imagen: {
+          select: {
+            imagen: {
+              select: {
+                url_publica: true
+              }
+            }
+          }
+        },
+        visita: {
+          select: {
+            resumen: true,
+            inicio: true,
+            fin: true,
+            cita: {
+              select: {
+                cliente_id: true,
+                jardin_id: true,
+                precio_aplicado: true,
+                servicio: {
+                  select: {
+                    nombre: true,
+                    duracion_minutos: true
+                  }
+                },
+                usuario_cita_cliente_idTousuario: {
+                  select: {
+                    nombre: true,
+                    email: true
+                  }
+                },
+                jardin: {
+                  select: {
+                    direccion: {
+                      select: {
+                        calle: true,
+                        comuna: {
+                          select: {
+                            nombre: true,
+                            region: {
+                              select: {
+                                nombre: true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!portfolioItem) {
+      return res.status(404).json({ error: 'Trabajo no encontrado' });
+    }
+
+    // Calcular duración si hay fechas de inicio y fin
+    let duracionTexto = null;
+    if (portfolioItem.visita?.inicio && portfolioItem.visita?.fin) {
+      const duracion = new Date(portfolioItem.visita.fin).getTime() - new Date(portfolioItem.visita.inicio).getTime();
+      const horas = Math.floor(duracion / (1000 * 60 * 60));
+      const minutos = Math.floor((duracion % (1000 * 60 * 60)) / (1000 * 60));
+      duracionTexto = `${horas}h ${minutos}min`;
+    }
+
+    // Formatear datos para el frontend
+    const trabajoDetalle = {
+      id: Number(portfolioItem.id),
+      titulo: portfolioItem.titulo,
+      descripcion: portfolioItem.descripcion || 'Proyecto realizado con dedicación y profesionalismo.',
+      imagenUrl: portfolioItem.imagen?.url_publica || '/images/placeholder-portfolio.jpg',
+      fecha: portfolioItem.publicado_en?.toISOString().split('T')[0] || portfolioItem.creado_en.toISOString().split('T')[0],
+      servicio: portfolioItem.visita?.cita?.servicio?.nombre || 'Servicio general',
+      cliente: portfolioItem.visita?.cita?.usuario_cita_cliente_idTousuario?.nombre || null,
+      ubicacion: portfolioItem.visita?.cita?.jardin?.direccion ? 
+        `${portfolioItem.visita.cita.jardin.direccion.comuna?.nombre}, ${portfolioItem.visita.cita.jardin.direccion.comuna?.region?.nombre}` : null,
+      duracion: duracionTexto,
+      precio: portfolioItem.visita?.cita?.precio_aplicado ? Number(portfolioItem.visita.cita.precio_aplicado) : null,
+      galeria: portfolioItem.portafolio_imagen?.map(img => img.imagen.url_publica).filter(Boolean) || [],
+      // Agregar testimonial si hay resumen de la visita
+      testimonial: portfolioItem.visita?.resumen ? {
+        texto: portfolioItem.visita.resumen,
+        autor: portfolioItem.visita.cita?.usuario_cita_cliente_idTousuario?.nombre || 'Cliente satisfecho'
+      } : null
+    };
+
+    res.json(toJSONSafe(trabajoDetalle));
+  } catch (err: any) {
+    console.error("❌ Error al obtener trabajo del portfolio:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener trabajo' });
+  }
+});
+
+// Obtener servicios activos
+app.get('/servicios', async (req, res) => {
+  try {
+    const servicios = await prisma.servicio.findMany({
+      where: { 
+        activo: true 
+      },
+      select: {
+        id: true,
+        nombre: true,
+        descripcion: true,
+        duracion_minutos: true,
+        precio_clp: true,
+        imagen: {
+          select: {
+            url_publica: true,
+            clave_storage: true
+          }
+        }
+      },
+      orderBy: { 
+        nombre: 'asc' 
+      }
+    });
+
+    // Transformar los datos para el frontend
+    const serviciosFormatted = servicios.map(servicio => ({
+      id: String(servicio.id),
+      title: servicio.nombre,
+      description: servicio.descripcion || 'Servicio profesional de calidad.',
+      imageUrl: servicio.imagen?.url_publica || '/images/placeholder-service.jpg',
+      duracion: servicio.duracion_minutos || 0,
+      precio: servicio.precio_clp ? Number(servicio.precio_clp) : null
+    }));
+
+    res.json(toJSONSafe(serviciosFormatted));
+  } catch (err: any) {
+    console.error("❌ Error al obtener servicios:", err);
+    res.status(500).json({ error: err.message ?? 'Error al obtener servicios' });
+  }
+});
 
 // Registrar un nuevo usuario
 // - Valida inputs mínimos
@@ -345,6 +570,17 @@ app.post("/forgot-password", async (req: Request, res: Response) => {
       data: { userId: user.id, token, expiresAt: expires },
     });
 
+    // Verificar variables de entorno
+    console.log("🔍 EMAIL_USER:", process.env.EMAIL_USER ? "✅ Configurado" : "❌ Falta");
+    console.log("🔍 EMAIL_PASS:", process.env.EMAIL_PASS ? "✅ Configurado" : "❌ Falta");
+    
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      return res.status(500).json({ 
+        error: "Configuración de email incompleta",
+        details: "EMAIL_USER o EMAIL_PASS no están configurados"
+      });
+    }
+
     // Configuración de correo
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -366,8 +602,18 @@ app.post("/forgot-password", async (req: Request, res: Response) => {
 
     res.json({ message: "Correo de recuperación enviado" });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("❌ Error en forgot-password:", error);
+    
+    // Más detalles del error
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
+    
+    res.status(500).json({ 
+      error: "Error interno del servidor",
+      details: error instanceof Error ? error.message : "Error desconocido"
+    });
   }
 });
 
@@ -414,6 +660,13 @@ app.post("/reset-password", async (req: Request, res: Response) => {
 
 
 
+
+// Verificar variables de entorno al inicio
+console.log("🔧 Verificando configuración...");
+console.log("📧 EMAIL_USER:", process.env.EMAIL_USER ? "✅ Configurado" : "❌ Falta");
+console.log("🔑 EMAIL_PASS:", process.env.EMAIL_PASS ? "✅ Configurado" : "❌ Falta");
+console.log("🌐 FRONTEND_URL:", process.env.FRONTEND_URL || "❌ Falta");
+console.log("💾 DATABASE_URL:", process.env.DATABASE_URL ? "✅ Configurado" : "❌ Falta");
 
 // Leemos el puerto desde las variables de entorno; si no, usamos 3001 por defecto
 // Convierte a Number y arranca el servidor
