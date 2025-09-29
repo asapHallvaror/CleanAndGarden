@@ -171,7 +171,7 @@ export default function CambioContrasena() {
 
           {/* Enlace */}
           <a
-            href="/recuperar"
+            href="/forgot-password"
             className="text-sm text-gray-500 hover:underline text-center"
           >
             ¿No recuerdas tu contraseña actual?
