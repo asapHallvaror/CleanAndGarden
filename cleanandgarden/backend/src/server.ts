@@ -329,6 +329,7 @@ app.get('/servicios', async (req, res) => {
 // - Verifica que el email no exista
 // - Hashea la contraseña con bcryptjs (12 rondas)
 // - Crea el registro en la tabla `usuario`
+// Registrar un nuevo usuario
 app.post('/usuario', async (req, res) => {
   try {
     const {
@@ -370,7 +371,7 @@ app.post('/usuario', async (req, res) => {
       return res.status(409).json({ error: 'El email ya está registrado' })
     }
 
-    // ===== Crear usuario =====
+    // ===== Crear usuario (inactivo) =====
     const contrasena_hash = await bcrypt.hash(password, 12)
     const nuevoUsuario = await prisma.usuario.create({
       data: {
@@ -379,6 +380,7 @@ app.post('/usuario', async (req, res) => {
         email,
         telefono: telefono || null,
         contrasena_hash,
+        activo: false, // 👈 se crea inactivo hasta confirmar
       },
       select: {
         id: true,
@@ -387,7 +389,7 @@ app.post('/usuario', async (req, res) => {
         email: true,
         telefono: true,
         activo: true,
-        fecha_creacion: true,
+        
       },
     })
 
@@ -402,49 +404,105 @@ app.post('/usuario', async (req, res) => {
       })
     }
 
-    // Devolvemos usuario con su dirección (si existe)
-    const usuarioConDireccion = await prisma.usuario.findUnique({
-      where: { id: nuevoUsuario.id },
-      include: {
-        direccion: {
-          include: {
-            comuna: {
-              include: {
-                region: true, // trae la región automáticamente
-              },
-            },
-          },
-        },
+    // ===== Generar token de confirmación =====
+    const token = crypto.randomBytes(32).toString("hex")
+    const expires = new Date(Date.now() + 60 * 60 * 1000) // expira en 1 hora
+
+    await prisma.confirm_token.create({
+      data: { userId: nuevoUsuario.id, token, expiresAt: expires },
+    })
+
+    // ===== Enviar correo de confirmación =====
+    const confirmLink = `${process.env.FRONTEND_URL}/confirm-email?token=${token}`
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
       },
     })
 
-    return res.status(201).json(toJSONSafe(usuarioConDireccion))
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: nuevoUsuario.email,
+      subject: "Confirma tu cuenta",
+      html: `<p>Bienvenido ${nuevoUsuario.nombre} ${nuevoUsuario.apellido}!</p>
+             <p>Gracias por registrarte en Clean & Garden. Haz clic en el botón para activar tu cuenta:</p>
+             <a href="${confirmLink}">${confirmLink}</a>`,
+    })
+
+    console.log("✅ Correo de confirmación enviado a:", nuevoUsuario.email);
+    return res.status(201).json({ message: "Usuario creado, revisa tu correo para confirmar la cuenta" })
+
   } catch (err: any) {
     console.error(err)
     return res.status(500).json({ error: 'Error al registrar usuario' })
   }
 })
 
+//-------------------------------------------------------------------------------------
+// Confirmar email
+app.get("/confirm-email/:token", async (req, res) => {
+  try {
+    const { token } = req.params
 
-app.post('/login', async (req, res) => {
-  // recibes la clave y usuario
-  const { email, password } = req.body ?? {}
+    const confirm = await prisma.confirm_token.findUnique({ where: { token } })
 
-  // ir a buscar a la base de datos si exite el usuario y traer la contraseña hasheada, si no existe el usuario, responder que no existe
-  const usuario = await prisma.usuario.findUnique({ where: { email } })
-  if (!usuario) {
-    return res.status(404).json({ error: 'Usuario no encontrado' })
+    if (!confirm || confirm.expiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: "Token inválido o expirado" })
+    }
+
+    // Activar usuario
+    await prisma.usuario.update({
+      where: { id: Number(confirm.userId) }, // 👈 userId correcto
+      data: { activo: true },
+    })
+
+    // Eliminar token usado
+    await prisma.confirm_token.delete({ where: { id: confirm.id } })
+
+    return res.json({ success: true, message: "✅ Cuenta activada correctamente" })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ success: false, message: "Error al confirmar cuenta" })
   }
-  // return res.status(200).json({ message: 'Usuario encontrado', user: toJSONSafe(usuario) })
-  // tomar la contrasela que eviaron en el login , hashearla y compararla con la que esta en la base de datos si son iguales, responder que el login es correcto, si no, responder que la clave es incorrecta
-  const passwordMatch = await bcrypt.compare(password, usuario.contrasena_hash)
-  console.log('passwordMatch', passwordMatch)
-  if (!passwordMatch) {
-    return res.status(401).json({ error: 'Contraseña incorrecta' })
-  }
-  return res.status(200).json({ message: 'Usuario clave correcta' })
 })
 
+//----------------------------------------------------------------------------------
+
+app.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body ?? {};
+
+    // Buscar usuario
+    const usuario = await prisma.usuario.findUnique({ where: { email } });
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Comparar contraseña
+    const passwordMatch = await bcrypt.compare(password, usuario.contrasena_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    // Verificar si el usuario confirmó el correo
+    if (!usuario.activo) {
+      return res.status(403).json({ error: 'Debes confirmar tu cuenta antes de iniciar sesión. Revisa tu correo 📩' });
+    }
+
+    // Si todo bien → devolver login exitoso
+   return res.status(200).json({ 
+      message: '✅ Login exitoso', 
+      user: toJSONSafe(usuario) 
+    })
+
+  } catch (e) {
+    console.error("Error en /login:", e)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
 
 app.post("/change-password", async (req, res) => {
   try {

@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // para redirigir
-import Swal from "sweetalert2";
+import { useRouter } from "next/navigation"; // 👈 para redirigir
 
 // Interfaces para los datos que vienen de la base de datos
 interface Region {
@@ -32,6 +31,10 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfPassword, setShowConfPassword] = useState(false);
 
+  // Estados para mensajes en el formulario
+  const [mensaje, setMensaje] = useState("");
+  const [tipoMensaje, setTipoMensaje] = useState<"success" | "error" | "">("");
+
   // Estados para regiones/comunas dinámicas
   const [regiones, setRegiones] = useState<Region[]>([]);
   const [comunas, setComunas] = useState<Comuna[]>([]);
@@ -42,9 +45,10 @@ export default function RegisterPage() {
     fetch("http://localhost:3001/regiones")
       .then((res) => res.json())
       .then((data) => setRegiones(data))
-      .catch(() =>
-        Swal.fire("Error", "No se pudieron cargar las regiones", "error")
-      );
+      .catch(() => {
+        setMensaje("No se pudieron cargar las regiones");
+        setTipoMensaje("error");
+      });
   }, []);
 
   // Cargar comunas cuando cambie la región
@@ -53,9 +57,10 @@ export default function RegisterPage() {
       fetch(`http://localhost:3001/regiones/${regionId}/comunas`)
         .then((res) => res.json())
         .then((data) => setComunas(data))
-        .catch(() =>
-          Swal.fire("Error", "No se pudieron cargar las comunas", "error")
-        );
+        .catch(() => {
+          setMensaje("No se pudieron cargar las comunas");
+          setTipoMensaje("error");
+        });
     } else {
       setComunas([]);
       setForm(prevForm => ({ ...prevForm, comunaId: "" }));
@@ -76,15 +81,13 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Reset mensajes antes de enviar
+    setMensaje("");
+    setTipoMensaje("");
+
     if (form.password !== form.confpassword) {
-      Swal.fire({
-        icon: "error",
-        title: "Las contraseñas no coinciden",
-        toast: true,
-        position: "top-end",
-        timer: 2500,
-        showConfirmButton: false,
-      });
+      setMensaje("Las contraseñas no coinciden");
+      setTipoMensaje("error");
       return;
     }
 
@@ -95,23 +98,18 @@ export default function RegisterPage() {
         body: JSON.stringify(form),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error ?? "Error al registrar usuario");
+        // ⚠️ Mostrar mensaje de error del backend
+        setMensaje(data?.error || "Error al registrar usuario");
+        setTipoMensaje("error");
+        return;
       }
 
-      const data = await res.json();
-      console.log("Usuario creado:", data);
-
-      Swal.fire({
-        icon: "success",
-        title: "Cuenta creada",
-        text: "Tu cuenta fue creada correctamente",
-        toast: true,
-        position: "top-end",
-        timer: 2000,
-        showConfirmButton: false,
-      });
+      // ✅ Registro exitoso
+      setMensaje(data?.message || "Tu cuenta fue creada correctamente");
+      setTipoMensaje("success");
 
       // Reset de estados
       setForm({
@@ -132,19 +130,12 @@ export default function RegisterPage() {
       // Redirección automática al login
       setTimeout(() => {
         router.push("/login");
-      }, 2000);
+      }, 2500);
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Ocurrió un error inesperado";
-      Swal.fire({
-        icon: "error",
-        title: "No se pudo registrar",
-        text: message,
-        toast: true,
-        position: "top-end",
-        timer: 3000,
-        showConfirmButton: false,
-      });
+      setMensaje(message);
+      setTipoMensaje("error");
     }
   };
 
@@ -154,6 +145,19 @@ export default function RegisterPage() {
         <h1 className="mb-6 text-3xl font-bold text-center text-[#2E5430]">
           Registro
         </h1>
+
+        {/* Bloque de mensajes */}
+        {mensaje && (
+          <div
+            className={`p-3 mb-4 rounded-md text-center ${
+              tipoMensaje === "success"
+                ? "bg-green-100 text-green-700 border border-green-400"
+                : "bg-red-100 text-red-700 border border-red-400"
+            }`}
+          >
+            {mensaje}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Nombre y Apellido */}
@@ -233,9 +237,21 @@ export default function RegisterPage() {
           <input
             type="tel"
             name="telefono"
-            placeholder="Teléfono*"
+            placeholder="+569XXXXXXXX"
             value={form.telefono}
-            onChange={handleChange}
+            onChange={(e) => {
+              let value = e.target.value;
+
+              // Siempre debe comenzar con +569
+              if (!value.startsWith("+569")) {
+                value = "+569" + value.replace(/[^0-9]/g, "");
+              }
+
+              // Máximo 12 caracteres (+569 + 8 dígitos)
+              if (value.length > 12) value = value.slice(0, 12);
+
+              setForm({ ...form, telefono: value });
+            }}
             className="w-full border border-gray-300 rounded-md p-2"
             required
           />

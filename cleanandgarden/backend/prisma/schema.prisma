@@ -447,13 +447,14 @@ model reset_token {
 }
 
 model confirm_token {
-  id         BigInt    @id @default(autoincrement())
-  userid     BigInt?
-  token      String    @unique
-  expiresat  DateTime  @db.Timestamptz(6)
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  usuario    usuario?  @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt
+  token     String    @unique
+  expiresAt DateTime  @db.Timestamptz(6)
+  createdAt DateTime? @default(now()) @db.Timestamptz(6)
+  usuario   usuario   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
+
 
 enum estado_cita {
   pendiente
