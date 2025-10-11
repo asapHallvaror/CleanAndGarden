@@ -1,64 +1,60 @@
 "use client";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function CambioContrasena() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  // Estados para mostrar/ocultar contraseñas
-  const [showPassword, setShowPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // Estados de mensajes
+  const [showOld, setShowOld] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const validarPassword = (password: string) => {
+    const regex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
+    return regex.test(password);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    // Validación en frontend antes de enviar
+    if (!validarPassword(newPassword)) {
+      setError(
+        "La nueva contraseña debe tener al menos 8 caracteres, incluir una mayúscula, una minúscula, un número y un carácter especial."
+      );
+      return;
+    }
     if (newPassword !== confirmPassword) {
-      setError("❌ Las contraseñas nuevas no coinciden");
+      setError("Las contraseñas nuevas no coinciden.");
       return;
     }
 
     try {
       const res = await fetch("http://localhost:3001/change-password", {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, newPassword, confirmPassword }),
+        credentials: "include", // 👈 envía el JWT (cookie)
+        body: JSON.stringify({ oldPassword, newPassword, confirmPassword }),
       });
 
       const data = await res.json();
-      console.log("Respuesta backend:", data);
-
       if (res.ok) {
-        setSuccess("✅ Contraseña actualizada correctamente");
-        // limpiar campos
-        setEmail("");
-        setPassword("");
+        setSuccess("✅ Contraseña actualizada correctamente. Debes iniciar sesión nuevamente.");
+        setOldPassword("");
         setNewPassword("");
         setConfirmPassword("");
-        // limpiar mensaje después de 3 segundos
-        setTimeout(() => setSuccess(""), 3000);
-
-        // 👁️ Resetear visibilidad
-        setShowPassword(false);
-        setShowNewPassword(false);
-        setShowConfirmPassword(false);
+        setTimeout(() => (window.location.href = "/login"), 2000);
       } else {
-        setError(`❌ ${data.error}`);
-        // limpiar error después de 3 segundos
-        setTimeout(() => setError(""), 3000);
+        setError(data.error || "Error al actualizar contraseña.");
       }
     } catch (err) {
       console.error("Error al conectar con backend:", err);
-      setError("❌ Error de conexión con el servidor");
+      setError("Error de conexión con el servidor.");
     }
   };
 
@@ -69,67 +65,49 @@ export default function CambioContrasena() {
           Cambio de contraseña
         </h1>
 
-        {/* Alertas */}
         {error && (
-          <div className="alert alert-error shadow-lg mb-4">
-            <span>{error}</span>
+          <div className="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-300 rounded">
+            {error}
           </div>
         )}
         {success && (
-          <div className="alert alert-success shadow-lg mb-4">
-            <span>{success}</span>
+          <div className="mb-4 p-3 text-sm text-green-700 bg-green-50 border border-green-300 rounded">
+            {success}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Email */}
-          <label className="form-control">
-            <span className="label-text font-medium mb-3 block">
-              Correo electrónico
-            </span>
-            <input
-              type="email"
-              placeholder="tuemail@ejemplo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-md p-2"
-              required
-            />
-          </label>
-
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Contraseña actual */}
-          <label className="form-control">
-            <span className="label-text font-medium mb-3 block">
-              Ingresa tu contraseña actual
-            </span>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Contraseña actual
+            </label>
             <div className="relative">
               <input
-                type={showPassword ? "text" : "password"}
-                placeholder="********"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                type={showOld ? "text" : "password"}
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
                 className="w-full border border-gray-300 rounded-md p-2"
                 required
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2.5 text-gray-500"
+                onClick={() => setShowOld(!showOld)}
+                className="absolute right-3 top-2 text-gray-500"
               >
-                {showPassword ? "👁️" : "👁️‍🗨️"}
+                {showOld ? <Eye /> : <EyeOff />}
               </button>
             </div>
-          </label>
+          </div>
 
           {/* Nueva contraseña */}
-          <label className="form-control">
-            <span className="label-text font-medium mb-3 block">
-              Ingresa la nueva contraseña
-            </span>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nueva contraseña
+            </label>
             <div className="relative">
               <input
-                type={showNewPassword ? "text" : "password"}
-                placeholder="********"
+                type={showNew ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full border border-gray-300 rounded-md p-2"
@@ -137,23 +115,25 @@ export default function CambioContrasena() {
               />
               <button
                 type="button"
-                onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-3 top-2.5 text-gray-500"
+                onClick={() => setShowNew(!showNew)}
+                className="absolute right-3 top-2 text-gray-500"
               >
-                {showNewPassword ? "👁️" : "👁️‍🗨️"}
+                {showNew ? <Eye /> : <EyeOff />}
               </button>
             </div>
-          </label>
+            <small className="text-xs text-gray-500">
+              Mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.
+            </small>
+          </div>
 
           {/* Confirmar nueva contraseña */}
-          <label className="form-control">
-            <span className="label-text font-medium mb-3 block">
-              Confirma la nueva contraseña
-            </span>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Confirmar nueva contraseña
+            </label>
             <div className="relative">
               <input
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="********"
+                type={showConfirm ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full border border-gray-300 rounded-md p-2"
@@ -161,52 +141,20 @@ export default function CambioContrasena() {
               />
               <button
                 type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-2.5 text-gray-500"
+                onClick={() => setShowConfirm(!showConfirm)}
+                className="absolute right-3 top-2 text-gray-500"
               >
-                {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                {showConfirm ? <Eye /> : <EyeOff />}
               </button>
             </div>
-          </label>
-
-          {/* Enlace */}
-          <a
-            href="/forgot-password"
-            className="text-sm text-gray-500 hover:underline text-center"
-          >
-            ¿No recuerdas tu contraseña actual?
-          </a>
-
-          {/* Botones */}
-          <div className="flex gap-3 mt-4">
-            <button
-              type="submit"
-              className="btn rounded-lg bg-green-700 text-white flex-1"
-            >
-              Confirmar cambio
-            </button>
-            <button
-              type="button"
-              className="btn rounded-lg bg-red-400 text-white flex-1"
-              onClick={() => {
-                setEmail("");
-                setPassword("");
-                setNewPassword("");
-                setConfirmPassword("");
-                setError("");
-                setSuccess("");
-
-                // 👁️ Resetear visibilidad
-                setShowPassword(false);
-                setShowNewPassword(false);
-                setShowConfirmPassword(false);
-
-                
-              }}
-            >
-              Cancelar
-            </button>
           </div>
+
+          <button
+            type="submit"
+            className="w-full bg-[#2E5430] text-white py-2 rounded-md font-medium hover:bg-[#234624]"
+          >
+            Cambiar contraseña
+          </button>
         </form>
       </div>
     </div>

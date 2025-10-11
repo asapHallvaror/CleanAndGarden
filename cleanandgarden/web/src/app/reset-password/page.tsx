@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react"; // iconos de ojo
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -31,11 +32,24 @@ function ResetPasswordContent() {
     if (confirmPassword === "") setShowConfirm(false);
   }, [confirmPassword]);
 
+  // 🔒 Validar complejidad de contraseña segura
+  const validarPassword = (password: string) => {
+    const regex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
+    return regex.test(password);
+  };
+
   const validate = () => {
     setError(null);
     if (!token) return "Token faltante.";
-    if (newPassword.trim().length < 8) return "La contraseña debe tener al menos 8 caracteres.";
-    if (newPassword !== confirmPassword) return "Las contraseñas no coinciden.";
+
+    // ✅ Validar formato seguro
+    if (!validarPassword(newPassword)) {
+      return "La contraseña debe tener al menos 8 caracteres, incluir una mayúscula, una minúscula, un número y un carácter especial.";
+    }
+
+    if (newPassword !== confirmPassword)
+      return "Las contraseñas no coinciden.";
     return null;
   };
 
@@ -50,14 +64,19 @@ function ResetPasswordContent() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword }),
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, newPassword }),
+        }
+      );
 
       if (res.ok) {
-        setMessage("Contraseña cambiada correctamente. Serás redirigido al login...");
+        setMessage(
+          "Contraseña cambiada correctamente. Serás redirigido al login..."
+        );
         setTimeout(() => {
           router.push("/login");
         }, 2000);
@@ -76,10 +95,14 @@ function ResetPasswordContent() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#fefaf2]">
       <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Restablece tu contraseña</h1>
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">
+          Restablece tu contraseña
+        </h1>
 
         {!token ? (
-          <p className="text-red-600">Token no válido. Revisa el enlace del correo.</p>
+          <p className="text-red-600">
+            Token no válido. Revisa el enlace del correo.
+          </p>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {/* Nueva contraseña */}
@@ -96,18 +119,28 @@ function ResetPasswordContent() {
                 />
                 <button
                   type="button"
-                  aria-label={showNew ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={
+                    showNew ? "Ocultar contraseña" : "Mostrar contraseña"
+                  }
                   onClick={() => setShowNew((s) => !s)}
                   className="absolute right-2 top-2.5 text-gray-600 p-1"
                 >
-                  {showNew ? "👁️" : "👁️‍🗨️"}
+                  {showNew ? <Eye size={20} /> : <EyeOff size={20} />}
                 </button>
+
+                {/* Reglas visuales */}
+                <small className="text-gray-500 text-xs block mt-1">
+                  Mínimo 8 caracteres, una mayúscula, una minúscula, un número y
+                  un carácter especial.
+                </small>
               </div>
             </label>
 
             {/* Confirmar nueva contraseña */}
             <label className="form-control text-left relative">
-              <span className="label-text font-medium">Confirmar contraseña</span>
+              <span className="label-text font-medium">
+                Confirmar contraseña
+              </span>
               <div className="relative">
                 <input
                   type={showConfirm ? "text" : "password"}
@@ -119,14 +152,37 @@ function ResetPasswordContent() {
                 />
                 <button
                   type="button"
-                  aria-label={showConfirm ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={
+                    showConfirm ? "Ocultar contraseña" : "Mostrar contraseña"
+                  }
                   onClick={() => setShowConfirm((s) => !s)}
                   className="absolute right-2 top-2.5 text-gray-600 p-1"
                 >
-                  {showConfirm ? "👁️" : "👁️‍🗨️"}
+                  {showConfirm ? <Eye size={20} /> : <EyeOff size={20} />}
                 </button>
               </div>
             </label>
+
+            {message && <p className="text-green-600 mt-2">{message}</p>}
+            {error && (
+              <div className="flex items-start gap-2 mt-3 p-3 rounded-md border border-red-300 bg-red-50 text-red-700 text-sm">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5 mt-0.5 flex-shrink-0 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v2m0 4h.01M4.93 4.93l14.14 14.14M12 2a10 10 0 1010 10A10 10 0 0012 2z"
+                  />
+                </svg>
+                <p className="leading-tight">{error}</p>
+              </div>
+            )}
 
             <div className="flex gap-3 mt-4 justify-center">
               <button
@@ -138,8 +194,6 @@ function ResetPasswordContent() {
               </button>
             </div>
 
-            {message && <p className="text-green-600 mt-2">{message}</p>}
-            {error && <p className="text-red-600 mt-2">{error}</p>}
           </form>
         )}
       </div>
