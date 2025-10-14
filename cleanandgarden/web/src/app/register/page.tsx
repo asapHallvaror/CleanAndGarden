@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // 👈 para redirigir
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react"; // 👁️ iconos
 
-// Interfaces para los datos que vienen de la base de datos
 interface Region {
   id: string;
   nombre: string;
@@ -24,21 +24,25 @@ export default function RegisterPage() {
     confpassword: "",
     telefono: "",
     direccion: "",
-    comunaId: "", // solo guardamos comuna
+    comunaId: "",
     terminos: false,
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfPassword, setShowConfPassword] = useState(false);
-
-  // Estados para mensajes en el formulario
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState<"success" | "error" | "">("");
 
-  // Estados para regiones/comunas dinámicas
   const [regiones, setRegiones] = useState<Region[]>([]);
   const [comunas, setComunas] = useState<Comuna[]>([]);
   const [regionId, setRegionId] = useState("");
+
+  // 🔒 Validar formato de contraseña segura
+  const validarPassword = (password: string) => {
+    const regex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
+    return regex.test(password);
+  };
 
   // Cargar regiones al inicio
   useEffect(() => {
@@ -51,7 +55,7 @@ export default function RegisterPage() {
       });
   }, []);
 
-  // Cargar comunas cuando cambie la región
+  // Cargar comunas cuando cambia la región
   useEffect(() => {
     if (regionId) {
       fetch(`http://localhost:3001/regiones/${regionId}/comunas`)
@@ -63,7 +67,7 @@ export default function RegisterPage() {
         });
     } else {
       setComunas([]);
-      setForm(prevForm => ({ ...prevForm, comunaId: "" }));
+      setForm((prev) => ({ ...prev, comunaId: "" }));
     }
   }, [regionId]);
 
@@ -71,22 +75,55 @@ export default function RegisterPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
-    let checked = false;
-    if (type === "checkbox") {
-      checked = (e.target as HTMLInputElement).checked;
-    }
+    const checked = type === "checkbox" ? (e.target as HTMLInputElement).checked : undefined;
     setForm({ ...form, [name]: type === "checkbox" ? checked : value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Reset mensajes antes de enviar
+    const formElement = e.currentTarget;
+    if (!formElement.reportValidity()) return; // ✅ valida todos los campos HTML5
+
     setMensaje("");
     setTipoMensaje("");
 
+    // 🚫 Validación manual adicional por seguridad
+    if (
+      !form.nombre.trim() ||
+      !form.apellido.trim() ||
+      !form.email.trim() ||
+      !form.password.trim() ||
+      !form.confpassword.trim() ||
+      !form.telefono.trim() ||
+      !form.direccion.trim() ||
+      !regionId ||
+      !form.comunaId
+    ) {
+      setMensaje("Por favor completa todos los campos obligatorios");
+      setTipoMensaje("error");
+      return;
+    }
+
+    // 🔢 Validar número de teléfono (debe tener +569 + 8 dígitos)
+    if (form.telefono.length < 12) {
+      setMensaje("El número de teléfono no es válido (+569XXXXXXXX)");
+      setTipoMensaje("error");
+      return;
+    }
+
+    // 🔑 Contraseñas iguales
     if (form.password !== form.confpassword) {
       setMensaje("Las contraseñas no coinciden");
+      setTipoMensaje("error");
+      return;
+    }
+
+    // 🔐 Contraseña segura
+    if (!validarPassword(form.password)) {
+      setMensaje(
+        "La contraseña debe tener al menos 8 caracteres, incluir una mayúscula, una minúscula, un número y un carácter especial."
+      );
       setTipoMensaje("error");
       return;
     }
@@ -101,17 +138,15 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        // ⚠️ Mostrar mensaje de error del backend
         setMensaje(data?.error || "Error al registrar usuario");
         setTipoMensaje("error");
         return;
       }
 
-      // ✅ Registro exitoso
       setMensaje(data?.message || "Tu cuenta fue creada correctamente");
       setTipoMensaje("success");
 
-      // Reset de estados
+      // 🔁 Resetear formulario
       setForm({
         nombre: "",
         apellido: "",
@@ -127,10 +162,8 @@ export default function RegisterPage() {
       setShowPassword(false);
       setShowConfPassword(false);
 
-      // Redirección automática al login
-      setTimeout(() => {
-        router.push("/login");
-      }, 2500);
+      // Redirección al login
+      setTimeout(() => router.push("/login"), 2500);
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Ocurrió un error inesperado";
@@ -146,7 +179,6 @@ export default function RegisterPage() {
           Registro
         </h1>
 
-        {/* Bloque de mensajes */}
         {mensaje && (
           <div
             className={`p-3 mb-4 rounded-md text-center ${
@@ -195,6 +227,7 @@ export default function RegisterPage() {
 
           {/* Contraseñas */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Contraseña */}
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -208,11 +241,17 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2.5 text-gray-500"
+                className="absolute right-3 top-2.5 text-gray-500 hover:text-[#2E5430] transition-colors"
               >
-                {showPassword ? "👁️" : "👁️‍🗨️"}
+                {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
               </button>
+              <small className="text-gray-500 text-xs block mt-1">
+                Mínimo 8 caracteres, una mayúscula, una minúscula, un número y
+                un carácter especial.
+              </small>
             </div>
+
+            {/* Confirmar contraseña */}
             <div className="relative">
               <input
                 type={showConfPassword ? "text" : "password"}
@@ -226,9 +265,9 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setShowConfPassword(!showConfPassword)}
-                className="absolute right-3 top-2.5 text-gray-500"
+                className="absolute right-3 top-2.5 text-gray-500 hover:text-[#2E5430] transition-colors"
               >
-                {showConfPassword ? "👁️" : "👁️‍🗨️"}
+                {showConfPassword ? <Eye size={20} /> : <EyeOff size={20} />}
               </button>
             </div>
           </div>
@@ -241,15 +280,10 @@ export default function RegisterPage() {
             value={form.telefono}
             onChange={(e) => {
               let value = e.target.value;
-
-              // Siempre debe comenzar con +569
               if (!value.startsWith("+569")) {
                 value = "+569" + value.replace(/[^0-9]/g, "");
               }
-
-              // Máximo 12 caracteres (+569 + 8 dígitos)
               if (value.length > 12) value = value.slice(0, 12);
-
               setForm({ ...form, telefono: value });
             }}
             className="w-full border border-gray-300 rounded-md p-2"
@@ -276,12 +310,11 @@ export default function RegisterPage() {
               required
             >
               <option value="">Escoge una región</option>
-              {Array.isArray(regiones) &&
-                regiones.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.nombre}
-                  </option>
-                ))}
+              {regiones.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nombre}
+                </option>
+              ))}
             </select>
 
             <select
@@ -293,12 +326,11 @@ export default function RegisterPage() {
               disabled={!regionId}
             >
               <option value="">Escoge una comuna</option>
-              {Array.isArray(comunas) &&
-                comunas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
+              {comunas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -307,7 +339,7 @@ export default function RegisterPage() {
             <input
               type="checkbox"
               name="terminos"
-              checked={form.terminos}
+              checked={!!form.terminos}
               onChange={handleChange}
               className="checkbox checkbox-success"
               required
@@ -322,7 +354,7 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            className="w-full py-2 text-white rounded-md bg-[#2E5430] hover:bg-green-700"
+            className="w-full py-2 text-white rounded-md bg-[#2E5430] hover:bg-green-700 transition-colors"
           >
             Crear cuenta
           </button>

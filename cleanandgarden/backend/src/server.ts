@@ -17,12 +17,37 @@ import nodemailer from "nodemailer";
 // Importamos tipos de Request y Response de Express para tipar mejor las funciones
 import { Request, Response } from "express";
 
+import cookieParser from "cookie-parser";
+import jwt from "jsonwebtoken";
+
 // Creamos la app de Express (hay que pensarlo como el "router" principal de la API)
 const app = express()
 // Habilita CORS: permite que el front pueda llamar a la api
-app.use(cors())
-// Habilita parseo de json en el body de las requests
-app.use(express.json())
+app.use(cors({
+  origin: "http://localhost:3000", // 👈 dirección exacta de tu frontend
+  credentials: true,               // 👈 habilita envío de cookies
+}));
+
+app.use(express.json());
+app.use(cookieParser());
+
+// Middleware que protege rutas privadas (como /profile)
+function authMiddleware(req: Request, res: Response, next: any) {
+  const token = req.cookies?.token;
+  if (!token) {
+    return res.status(401).json({ error: "No autorizado. Token no encontrado." });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    // Guardamos los datos decodificados en req.user
+    (req as any).user = decoded;
+    next();
+  } catch (err) {
+    console.error("❌ Token inválido o expirado:", err);
+    return res.status(403).json({ error: "Token inválido o expirado" });
+  }
+}
 
 // Helper para serializar BigInt en JSON (Prisma puede devolver BigInt y JSON.stringify falla)
 // Técnico: JSON.stringify no soporta BigInt; convertimos BigInt -> Number de forma segura.
@@ -32,6 +57,27 @@ function toJSONSafe<T>(data: T): T {
     JSON.stringify(data, (_k, v) => (typeof v === 'bigint' ? Number(v) : v))
   )
 }
+
+// ==========================================
+// 🔐 JWT CONFIG
+// ==========================================
+const JWT_SECRET = process.env.JWT_SECRET || "clave_por_defecto";
+
+// Genera un token (expira en 1 hora)
+function generateToken(payload: object) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
+}
+
+// Verifica el token
+function verifyToken(token: string) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
+
+
 
 // Endpoint de salud/diagnóstico simple para comprobar conexión a la BD
 // Ejecuta un SELECT 1 y, si responde, la conexión está OK.
@@ -330,7 +376,7 @@ app.get('/servicios', async (req, res) => {
 // - Hashea la contraseña con bcryptjs (12 rondas)
 // - Crea el registro en la tabla `usuario`
 // Registrar un nuevo usuario
-app.post('/usuario', async (req, res) => {
+app.post("/usuario", async (req, res) => {
   try {
     const {
       nombre,
@@ -339,46 +385,84 @@ app.post('/usuario', async (req, res) => {
       password,
       confpassword,
       telefono,
-      direccion, // texto: calle
-      comunaId,  // ID de la comuna seleccionada en el front
+      direccion,
+      comunaId,
       terminos,
-    } = req.body ?? {}
+    } = req.body ?? {};
 
-    // ===== Validaciones =====
-    if (!nombre || typeof nombre !== 'string') {
-      return res.status(400).json({ error: 'El nombre es requerido' })
-    }
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ error: 'El email es requerido' })
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Formato de email inválido' })
-    }
-    if (!password || typeof password !== 'string' || password.length < 8) {
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' })
-    }
-    if (password !== confpassword) {
-      return res.status(400).json({ error: 'Las contraseñas no coinciden' })
-    }
-    if (terminos !== true) {
-      return res.status(400).json({ error: 'Debes aceptar los términos y condiciones' })
+    // ===== Validaciones básicas =====
+    if (!nombre?.trim()) return res.status(400).json({ error: "El nombre es requerido" });
+    if (!apellido?.trim()) return res.status(400).json({ error: "El apellido es requerido" });
+    if (!email?.trim()) return res.status(400).json({ error: "El email es requerido" });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRegex.test(email)) return res.status(400).json({ error: "Formato de email inválido" });
+
+    if (!password?.trim() || password.length < 8)
+      return res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" });
+
+    if (password !== confpassword)
+      return res.status(400).json({ error: "Las contraseñas no coinciden" });
+
+    const strongPasswordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
+    if (!strongPasswordRegex.test(password)) {
+      return res.status(400).json({
+        error:
+          "La contraseña debe tener al menos 8 caracteres, incluir una mayúscula, una minúscula, un número y un carácter especial.",
+      });
     }
 
-    // Verificar si el email ya existe
-    const existing = await prisma.usuario.findUnique({ where: { email } })
+    const telefonoRegex = /^\+569\d{8}$/;
+    if (!telefono || !telefonoRegex.test(telefono))
+      return res.status(400).json({ error: "Número de teléfono no válido (+569XXXXXXXX)" });
+
+    if (!direccion?.trim()) return res.status(400).json({ error: "La dirección es requerida" });
+
+    if (!comunaId || isNaN(Number(comunaId)))
+      return res.status(400).json({ error: "La comuna seleccionada no es válida" });
+
+    if (terminos !== true)
+      return res.status(400).json({ error: "Debes aceptar los términos y condiciones" });
+
+    // ===== Verificar si el email ya existe =====
+    const existing = await prisma.usuario.findUnique({ where: { email } });
+
+    // 🟩 NUEVO BLOQUE: manejar usuario inactivo con token expirado
     if (existing) {
-      return res.status(409).json({ error: 'El email ya está registrado' })
+      if (existing.activo) {
+        // Usuario activo → no se puede registrar otra vez
+        return res.status(409).json({ error: "El email ya está registrado" });
+      } else {
+        // Usuario inactivo → revisar si el token expiró
+        const tokenData = await prisma.confirm_token.findFirst({
+          where: { userId: existing.id },
+        });
+
+        // Si no hay token o el token expiró → eliminar usuario, token y dirección
+        if (!tokenData || tokenData.expiresAt < new Date()) {
+          await prisma.confirm_token.deleteMany({ where: { userId: existing.id } });
+          await prisma.direccion.deleteMany({ where: { usuario_id: existing.id } });
+          await prisma.usuario.delete({ where: { id: existing.id } });
+          console.log(`🗑️ Usuario inactivo eliminado: ${existing.email}`);
+        } else {
+          // Token aún válido → impedir registro duplicado
+          return res
+            .status(409)
+            .json({ error: "Ya existe una cuenta pendiente de activación." });
+        }
+      }
     }
+    // 🟩 FIN BLOQUE NUEVO
 
     // ===== Crear usuario (inactivo) =====
-    const contrasena_hash = await bcrypt.hash(password, 12)
+    const contrasena_hash = await bcrypt.hash(password, 12);
     const nuevoUsuario = await prisma.usuario.create({
       data: {
         nombre,
-        apellido: apellido || null,
+        apellido,
         email,
-        telefono: telefono || null,
+        telefono,
         contrasena_hash,
         activo: false, // 👈 se crea inactivo hasta confirmar
       },
@@ -389,57 +473,65 @@ app.post('/usuario', async (req, res) => {
         email: true,
         telefono: true,
         activo: true,
-        
       },
-    })
+    });
 
-    // ===== Crear dirección (opcional) =====
-    if (direccion && comunaId) {
-      await prisma.direccion.create({
-        data: {
-          calle: direccion,
-          usuario: { connect: { id: nuevoUsuario.id } },
-          comuna: { connect: { id: Number(comunaId) } },
-        },
-      })
-    }
+    // ===== Crear dirección =====
+    await prisma.direccion.create({
+      data: {
+        calle: direccion,
+        usuario: { connect: { id: nuevoUsuario.id } },
+        comuna: { connect: { id: Number(comunaId) } },
+      },
+    });
 
     // ===== Generar token de confirmación =====
-    const token = crypto.randomBytes(32).toString("hex")
-    const expires = new Date(Date.now() + 60 * 60 * 1000) // expira en 1 hora
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 15 * 60 * 1000); // expira en 15 minutos
 
     await prisma.confirm_token.create({
       data: { userId: nuevoUsuario.id, token, expiresAt: expires },
-    })
+    });
 
-    // ===== Enviar correo de confirmación =====
-    const confirmLink = `${process.env.FRONTEND_URL}/confirm-email?token=${token}`
+    // ✅ Responder primero
+    res.status(201).json({
+      message: "Usuario creado, revisa tu correo para confirmar la cuenta",
+    });
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    })
+    // 🚀 Enviar correo en segundo plano
+    setImmediate(async () => {
+      try {
+        const confirmLink = `${process.env.FRONTEND_URL}/confirm-email?token=${token}`;
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+        });
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: nuevoUsuario.email,
-      subject: "Confirma tu cuenta",
-      html: `<p>Bienvenido ${nuevoUsuario.nombre} ${nuevoUsuario.apellido}!</p>
-             <p>Gracias por registrarte en Clean & Garden. Haz clic en el botón para activar tu cuenta:</p>
-             <a href="${confirmLink}">${confirmLink}</a>`,
-    })
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: nuevoUsuario.email,
+          subject: "Confirma tu cuenta",
+          html: `
+            <p>Bienvenido ${nuevoUsuario.nombre} ${nuevoUsuario.apellido}!</p>
+            <p>Gracias por registrarte en <b>Clean & Garden</b>. Haz clic en el siguiente enlace para activar tu cuenta:</p>
+            <p>${confirmLink}</p>
+          `,
+        });
 
-    console.log("✅ Correo de confirmación enviado a:", nuevoUsuario.email);
-    return res.status(201).json({ message: "Usuario creado, revisa tu correo para confirmar la cuenta" })
-
-  } catch (err: any) {
-    console.error(err)
-    return res.status(500).json({ error: 'Error al registrar usuario' })
+        console.log("✅ Correo de confirmación enviado a:", nuevoUsuario.email);
+      } catch (err) {
+        console.error("⚠️ Error al enviar correo de confirmación:", err);
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Error al registrar usuario" });
   }
-})
+});
+
 
 //-------------------------------------------------------------------------------------
 // Confirmar email
@@ -523,75 +615,96 @@ app.get("/confirm-email/:token", async (req, res) => {
 
 //----------------------------------------------------------------------------------
 
-app.post('/login', async (req, res) => {
+// =======================================
+// 🔐 LOGIN (autenticación con JWT seguro)
+// =======================================
+app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body ?? {};
 
-    // Buscar usuario
     const usuario = await prisma.usuario.findUnique({ where: { email } });
-    if (!usuario) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
+    if (!usuario) return res.status(404).json({ error: "Usuario no encontrado" });
 
-    // Comparar contraseña
     const passwordMatch = await bcrypt.compare(password, usuario.contrasena_hash);
-    if (!passwordMatch) {
-      return res.status(401).json({ error: 'Contraseña incorrecta' });
-    }
+    if (!passwordMatch) return res.status(401).json({ error: "Contraseña incorrecta" });
 
-    // Verificar si el usuario confirmó el correo
-    if (!usuario.activo) {
-      return res.status(403).json({ error: 'Debes confirmar tu cuenta antes de iniciar sesión. Revisa tu correo 📩' });
-    }
+    if (!usuario.activo)
+      return res.status(403).json({ error: "Debes confirmar tu cuenta antes de iniciar sesión." });
 
-    // Si todo bien → devolver login exitoso
-   return res.status(200).json({ 
-      message: '✅ Login exitoso', 
-      user: toJSONSafe(usuario) 
-    })
+    // ✅ Generar token JWT
+    const token = generateToken({
+      id: Number(usuario.id), // 👈 conversión segura
+      nombre: usuario.nombre,
+      email: usuario.email,
+    });
 
+    // ✅ Enviar cookie segura
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: false,      // 👈 en desarrollo debe ser false
+      sameSite: "lax",
+      maxAge: 60 * 60 * 1000,
+    });
+
+
+    // ✅ Respuesta al frontend
+    res.status(200).json({
+      message: "✅ Login exitoso",
+      user: toJSONSafe({
+        id: usuario.id,
+        nombre: usuario.nombre,
+        email: usuario.email,
+      }),
+    });
   } catch (e) {
-    console.error("Error en /login:", e)
-    res.status(500).json({ error: 'Error interno del servidor' })
+    console.error("Error en /login:", e);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
-})
+});
 
-app.post("/change-password", async (req, res) => {
+//------------------------------------------------------------------------------------------
+app.put("/change-password", authMiddleware, async (req, res) => {
   try {
-    const { email, password, newPassword, confirmPassword } = req.body ?? {};
+    const { oldPassword, newPassword, confirmPassword } = req.body ?? {};
+    const userId = (req as any).user.id; // ID obtenido del token JWT
 
-    // Validar campos
-    if (!email || !password || !newPassword || !confirmPassword) {
+    if (!oldPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({ error: "Todos los campos son obligatorios" });
     }
+
+    // Validar nueva contraseña segura
+    const strongPasswordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
+    if (!strongPasswordRegex.test(newPassword)) {
+      return res.status(400).json({
+        error:
+          "La nueva contraseña debe tener al menos 8 caracteres, incluir una mayúscula, una minúscula, un número y un carácter especial.",
+      });
+    }
+
     if (newPassword !== confirmPassword) {
       return res.status(400).json({ error: "Las contraseñas nuevas no coinciden" });
     }
 
-    // Buscar usuario
-    const usuario = await prisma.usuario.findUnique({ where: { email } });
-    if (!usuario) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
-    }
+    // Buscar usuario por ID
+    const usuario = await prisma.usuario.findUnique({ where: { id: userId } });
+    if (!usuario) return res.status(404).json({ error: "Usuario no encontrado" });
 
     // Comparar contraseña actual
-    const isMatch = await bcrypt.compare(password, usuario.contrasena_hash);
+    const isMatch = await bcrypt.compare(oldPassword, usuario.contrasena_hash);
     if (!isMatch) {
       return res.status(401).json({ error: "La contraseña actual es incorrecta" });
     }
 
-    // Hashear nueva contraseña
-    const saltRounds = 12;
-    const newHash = await bcrypt.hash(newPassword, saltRounds);
-    
-
-    // Actualizar en BD
+    // Hashear nueva contraseña y guardar
+    const newHash = await bcrypt.hash(newPassword, 12);
     await prisma.usuario.update({
-      where: { email },
+      where: { id: userId },
       data: { contrasena_hash: newHash },
     });
 
-   
+    // Opcional: invalidar token anterior (obliga a iniciar sesión de nuevo)
+    res.clearCookie("token");
 
     return res.status(200).json({ message: "✅ Contraseña actualizada correctamente" });
   } catch (err) {
@@ -600,7 +713,7 @@ app.post("/change-password", async (req, res) => {
   }
 });
 
-//----------------------------
+//-------------------------------------------------------------------------------------------------
 
 
 app.post("/forgot-password", async (req: Request, res: Response) => {
@@ -615,8 +728,7 @@ app.post("/forgot-password", async (req: Request, res: Response) => {
 
     // Generar token
     const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 60 * 60 * 1000); // expira en 1 hora
-
+    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
     // Guardar token en la tabla reset_token
     await prisma.reset_token.create({
       data: { userId: user.id, token, expiresAt: expires },
@@ -668,18 +780,35 @@ app.post("/forgot-password", async (req: Request, res: Response) => {
     });
   }
 });
-
+//---------------------------------------------------------------------------------
 app.post("/reset-password", async (req: Request, res: Response) => {
   try {
     const { token, newPassword } = req.body;
 
+    // ===== Validar campos =====
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: "Faltan datos requeridos" });
+    }
+
+    // ✅ Validar complejidad de la contraseña
+    const strongPasswordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
+
+    if (!strongPasswordRegex.test(newPassword)) {
+      return res.status(400).json({
+        message:
+          "La contraseña debe tener al menos 8 caracteres, incluir una mayúscula, una minúscula, un número y un carácter especial.",
+      });
+    }
+
+    // ===== Buscar token =====
     const reset = await prisma.reset_token.findUnique({ where: { token } });
 
     if (!reset || reset.expiresAt < new Date()) {
       return res.status(400).json({ message: "Token inválido o expirado" });
     }
 
-    // Hashear nueva contraseña
+    // ===== Hashear nueva contraseña =====
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await prisma.usuario.update({
@@ -687,7 +816,7 @@ app.post("/reset-password", async (req: Request, res: Response) => {
       data: { contrasena_hash: hashedPassword },
     });
 
-    // Eliminar token usado
+    // ===== Eliminar token usado =====
     await prisma.reset_token.delete({ where: { id: reset.id } });
 
     res.json({ message: "Contraseña actualizada correctamente" });
@@ -697,11 +826,119 @@ app.post("/reset-password", async (req: Request, res: Response) => {
   }
 });
 
+// ==========================================
 
+// =======================================
+// 🚪 LOGOUT
+// =======================================
+app.post("/logout", (_req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+  res.json({ message: "Sesión cerrada correctamente" });
+});
+// =======================================
+// 🧍 PERFIL (ruta protegida con token)
+// =======================================
+// Endpoint protegido: solo accesible si el usuario tiene cookie JWT válida
+app.get("/profile", authMiddleware, async (req, res) => {
+  try {
+    const userData = (req as any).user;
 
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: BigInt(userData.id) },
+      select: {
+        id: true,
+        nombre: true,
+        apellido: true,
+        email: true,
+        telefono: true,
+        direccion: {
+          select: {
+            id: true,
+            calle: true,
+            comuna: {
+              select: {
+                nombre: true,
+                region: {
+                  select: { nombre: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
 
+    if (!usuario) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
 
+    res.json({
+      message: "Perfil obtenido correctamente ✅",
+      user: toJSONSafe(usuario),
+    });
 
+  } catch (err) {
+    console.error("Error en /profile:", err);
+    res.status(500).json({ error: "Error al obtener perfil" });
+  }
+});
+
+app.put("/profile", authMiddleware, async (req, res) => {
+  try {
+    const userData = (req as any).user;
+    const { nombre, apellido, telefono, direcciones } = req.body;
+
+    // ✅ Actualizar datos básicos del usuario
+    await prisma.usuario.update({
+      where: { id: BigInt(userData.id) },
+      data: { nombre, apellido, telefono },
+    });
+
+    if (Array.isArray(direcciones)) {
+      for (const dir of direcciones) {
+        // 🗑️ Si el usuario marcó una dirección para eliminar
+        if (dir._delete && dir.id) {
+          await prisma.direccion.delete({ where: { id: BigInt(dir.id) } });
+          continue;
+        }
+
+        // 🆕 Si no tiene id, se crea una nueva
+        if (!dir.id) {
+          const comuna = await prisma.comuna.findFirst({
+            where: { nombre: dir.comuna },
+            include: { region: true },
+          });
+          if (!comuna) continue;
+
+          await prisma.direccion.create({
+            data: {
+              calle: dir.calle,
+              usuario_id: BigInt(userData.id),
+              comuna_id: comuna.id,
+            },
+          });
+        } else {
+          // ✏️ Si tiene id, se actualiza
+          await prisma.direccion.update({
+            where: { id: BigInt(dir.id) },
+            data: {
+              calle: dir.calle,
+            },
+          });
+        }
+      }
+    }
+
+    res.json({ message: "Perfil actualizado correctamente ✅" });
+  } catch (err) {
+    console.error("Error en PUT /profile:", err);
+    res.status(500).json({ error: "Error al actualizar perfil" });
+  }
+});
 
 
 
@@ -724,4 +961,30 @@ console.log("💾 DATABASE_URL:", process.env.DATABASE_URL ? "✅ Configurado" :
 // Convierte a Number y arranca el servidor
 const port = Number(process.env.PORT ?? 3001)
 app.listen(port, () => console.log(`🚀 API backend listening on port ${port}`))
+
+// 🧹 Limpieza automática de tokens expirados (confirmación + recuperación)
+setInterval(async () => {
+  try {
+    const now = new Date();
+
+    const deletedConfirm = await prisma.confirm_token.deleteMany({
+      where: { expiresAt: { lt: now } },
+    });
+
+    const deletedReset = await prisma.reset_token.deleteMany({
+      where: { expiresAt: { lt: now } },
+    });
+
+    const total = deletedConfirm.count + deletedReset.count;
+    if (total > 0) {
+      console.log(
+        `🧹 Tokens expirados eliminados: ${total} (confirm: ${deletedConfirm.count}, reset: ${deletedReset.count})`
+      );
+    }
+  } catch (err) {
+    console.error("⚠️ Error limpiando tokens expirados:", err);
+  }
+}, 5 * 60 * 1000); // cada 5 minutos
+
+
 
