@@ -5,12 +5,15 @@ import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
 
 export default function PerfilUsuario() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [regiones, setRegiones] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [comunasPorRegion, setComunasPorRegion] = useState<Record<number, any[]>>({});
 
   const router = useRouter();
@@ -26,6 +29,7 @@ export default function PerfilUsuario() {
           const usuario = data.user;
 
           // 🔧 Normalizamos las direcciones
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           usuario.direccion = (usuario.direccion || []).map((dir: any) => ({
             id: dir.id,
             calle: dir.calle || "",
@@ -211,6 +215,7 @@ export default function PerfilUsuario() {
               <h2 className="text-lg font-semibold text-[#2E5430] mb-2">Direcciones</h2>
               {user.direccion?.length ? (
                 <ul className="space-y-3">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {user.direccion.map((dir: any, i: number) => (
                     <li key={i} className="border border-gray-300 rounded-md p-3 bg-gray-50">
                       <p className="font-medium text-gray-800">{dir.calle}</p>
@@ -294,6 +299,7 @@ export default function PerfilUsuario() {
                 </button>
               </div>
 
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {user.direccion?.map((dir: any, index: number) => {
                 const regionObj = regiones.find((r) => r.nombre === dir.region);
                 const regionId = regionObj?.id;
