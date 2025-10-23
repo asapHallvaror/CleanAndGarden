@@ -163,6 +163,14 @@ export default function Navbar() {
           </>
         ) : (
           <>
+            <Link href="/mensajes">
+              <span
+                className="btn rounded-lg"
+                style={{ backgroundColor: "#4a7e49", color: "#fff", border: "none" }}
+              >
+                Mensajes
+              </span>
+            </Link>
             <Link href="/profile">
               <span
                 className="btn rounded-lg"
@@ -221,6 +229,13 @@ export default function Navbar() {
               </li>
             ) : (
               <>
+                <li>
+                  <Link href="/mensajes">
+                    <span className="btn rounded-lg w-full bg-[#4a7e49] text-white border-none">
+                      Mensajes
+                    </span>
+                  </Link>
+                </li>
                 <li>
                   <Link href="/profile">
                     <span className="btn rounded-lg w-full bg-[#4a7e49] text-white border-none">
